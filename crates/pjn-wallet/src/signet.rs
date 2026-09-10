@@ -175,14 +175,26 @@ impl ReceiverWallet for SignetWallet {
 mod tests {
     use super::*;
 
-    // A well-known BIP32 test vector key. Signet only, no funds, safe to commit.
-    const TPRV: &str = "tprv8ZgxMBicQKsPd3EupYiPRhaMooHKUHJxNsTfYuScep13go8QFfHdtkG9nRkFGb7busX4isf6X9dURGCoKgitaApQ6MupRhZMcS7a9pmwUY7";
+    use bdk_wallet::bitcoin::bip32::Xpriv;
+
+    /// The BIP32 test-vector-1 seed. Deriving the key here rather than pasting a
+    /// literal keeps the test honest: a mistyped xprv would otherwise fail as a
+    /// checksum error and look like a wallet bug.
+    const SEED: [u8; 16] = [
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f,
+    ];
+
+    fn descriptors_for(network: Network) -> (String, String) {
+        let master = Xpriv::new_master(network, &SEED).expect("test vector seed is valid");
+        (
+            format!("wpkh({master}/84'/1'/0'/0/*)"),
+            format!("wpkh({master}/84'/1'/0'/1/*)"),
+        )
+    }
 
     fn descriptors() -> (String, String) {
-        (
-            format!("wpkh({TPRV}/84'/1'/0'/0/*)"),
-            format!("wpkh({TPRV}/84'/1'/0'/1/*)"),
-        )
+        descriptors_for(Network::Signet)
     }
 
     #[test]
@@ -218,9 +230,7 @@ mod tests {
     #[test]
     fn mainnet_descriptors_are_rejected() {
         // Guards against a demo accidentally pointing at real money.
-        let xprv = "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi";
-        let ext = format!("wpkh({xprv}/84'/0'/0'/0/*)");
-        let int = format!("wpkh({xprv}/84'/0'/0'/1/*)");
+        let (ext, int) = descriptors_for(Network::Bitcoin);
         assert!(SignetWallet::new(&ext, &int, "https://mutinynet.com/api").is_err());
     }
 }
