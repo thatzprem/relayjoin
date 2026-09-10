@@ -188,12 +188,16 @@ impl NostrTransport {
             .pubkey(self.keys.public_key())
             .since(since);
 
+        // Take the notification stream BEFORE issuing the REQ. A relay dumps
+        // everything it already has the instant it sees the subscription, so
+        // subscribing first drops exactly the stored events this transport
+        // exists to collect — the payload left for a receiver that was offline.
+        let mut notifications = self.client.notifications();
+
         self.client
             .subscribe(filter)
             .await
             .context("subscribing for gift wraps")?;
-
-        let mut notifications = self.client.notifications();
         let deadline = tokio::time::sleep(timeout);
         tokio::pin!(deadline);
 

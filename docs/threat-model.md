@@ -40,8 +40,8 @@ identities. Content is NIP-44 sealed inside a NIP-59 gift wrap.
   URIs, that key becomes a persistent identifier and a relay can count how many
   payments that receiver is coordinating. **Generate a fresh session key per
   payjoin URI.**
-- Event size. We pad to a fixed bucket to avoid leaking PSBT structure — see
-  "Open problems" below, this is not done yet.
+- Event size, which currently correlates with PSBT size and so leaks input
+  count. Padding is not implemented; see "Open problems".
 - **The IP address of whoever connected.** This is the real leak.
 
 `created_at` is randomized by NIP-59 up to two days in the past, so it is not a
@@ -97,5 +97,39 @@ wraps exactly this and must run before signing.
   gift wrap; the payjoin state machine rejects stale PSBTs, but we have not
   audited that path.
 - **Relay availability is a liveness assumption**, not a safety one. If every
-  relay drops the event the payjoin simply does not complete, and the sender can
-  fall back to broadcasting the original PSBT. That fallback is not yet wired.
+  relay drops the event the payjoin simply does not complete, and the sender
+  falls back to the original PSBT. That fallback is wired and was exercised in a
+  live run: the sender timed out, declined to broadcast without
+  `--fallback-on-failure`, and reported the fallback txid.
+
+---
+
+## Known bug: stored events are not being collected
+
+**Status: open. Blocks the end-to-end demo.**
+
+A receiver that was offline when the sender published does not pick the payload
+off the relays when it comes back. It resumes its session correctly — same key,
+same URI, probing history intact — then sits waiting as though nothing is there.
+
+One cause has been found and fixed: `NostrTransport::recv` issued the REQ before
+opening the notification stream, and relays dump stored events the instant they
+see a subscription, so those events landed in the gap and were lost. That fix did
+not resolve the symptom, so at least one more cause remains.
+
+Next things to check:
+
+- Whether `ClientNotification::Event` is emitted at all for stored events in
+  nostr-sdk 0.45, or only for events arriving after the subscription is live. If
+  the latter, `recv` needs an explicit `fetch_events` pass for the backlog before
+  falling through to the live stream.
+- Whether the `since` filter is correct. Gift wraps randomise `created_at` up to
+  two days into the past; the window allows for that, but it is worth confirming
+  against what the relay actually stored.
+- Whether both relays accepted and retained the kind-1059 event. Query
+  `relay.damus.io` and `nos.lol` directly for event
+  `a6d58fe7e7e6df025a85237eb21acd1d99d0a77659bfb509777fdfa846d56bfb`.
+
+Live-relay round-tripping itself is verified and works when both parties are
+online at once, so the failure is specific to backlog retrieval, not to the
+transport as a whole.
