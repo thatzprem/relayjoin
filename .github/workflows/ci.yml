@@ -1,0 +1,53 @@
+name: CI
+
+# Smart App Control on the primary dev machine blocks cargo's unsigned build
+# scripts, so the Bitcoin half of the tree cannot compile locally on Windows.
+# Until WSL is up, these Linux runners are the source of truth for "does it build".
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Build all crates
+        run: cargo build --workspace --all-targets
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # Excludes the #[ignore]d live-relay test; see the relay-roundtrip job.
+      - name: Test
+        run: cargo test --workspace
+
+  relay-roundtrip:
+    name: live relay round-trip
+    # Manual only. It publishes real (encrypted, expiring) events to public
+    # relays, which is not something every push should do.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Round-trip a gift-wrapped envelope through public relays
+        env:
+          PJN_RELAYS: wss://relay.damus.io,wss://nos.lol
+        run: cargo test -p pjn-transport --test roundtrip -- --ignored --nocapture

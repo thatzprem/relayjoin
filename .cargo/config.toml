@@ -1,0 +1,5 @@
+# Windows schannel fails CRL lookups on some networks, which breaks crates.io
+# fetches with "CRYPT_E_NO_REVOCATION_CHECK". Disabling the revocation probe
+# only skips the CRL/OCSP freshness check; the cert chain is still verified.
+[http]
+check-revoke = false

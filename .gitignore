@@ -1,0 +1,7 @@
+/target
+**/target
+Cargo.lock.bak
+.env
+*.sqlite
+*.log
+.pjn-session.json
