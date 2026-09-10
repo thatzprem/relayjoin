@@ -81,6 +81,11 @@ impl SeenInputs {
     pub fn is_empty(&self) -> bool {
         self.seen.is_empty()
     }
+
+    /// Iterate the recorded outpoints, for persisting across restarts.
+    pub fn iter(&self) -> impl Iterator<Item = &OutPoint> + '_ {
+        self.seen.iter()
+    }
 }
 
 /// Fee bounds the receiver is willing to accept on the finished payjoin.

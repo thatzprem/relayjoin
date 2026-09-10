@@ -45,9 +45,22 @@ spendable UTXO.
 cargo run --release -p pjn-receiver -- serve --amount 50000
 ```
 
-It prints a payjoin URI and then waits. **You can close this terminal**, go away,
-and come back — the relays hold the sender's payload until the receiver returns.
-That is the property BIP77 needed a directory server for.
+It prints a payjoin URI and then waits.
+
+**You can close this terminal and come back.** Press Ctrl-C, re-run the same
+command, and it reprints the *same* URI and picks up where it left off — the
+session key, address and probing history are kept in `.pjn-session.json`. The
+relays hold the sender's payload in the meantime. That is the property BIP77
+needed a directory server for, and it is worth actually trying during the demo:
+kill the receiver, send from terminal 2, then start the receiver again and watch
+it collect a payload that arrived while it was gone.
+
+`pjn-receiver reset` forgets the session, which permanently invalidates the URI
+it printed.
+
+The sender does not yet resume this way — it holds its validation context in
+memory, so leave terminal 2 running once it has sent. See the README's Status
+table.
 
 ## Terminal 2 — sender
 

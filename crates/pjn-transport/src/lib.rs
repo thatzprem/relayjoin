@@ -120,8 +120,26 @@ impl NostrTransport {
         })
     }
 
+    /// Reconnect under a previously persisted session key.
+    ///
+    /// This is what lets a receiver print a payjoin URI, exit, and come back to
+    /// a payload the relays held in the meantime. Without it the key dies with
+    /// the process and the URI is permanently unusable.
+    pub async fn from_secret_hex(secret_hex: &str, relays: &[String]) -> Result<Self> {
+        let keys = Keys::parse(secret_hex).context("parsing persisted session key")?;
+        Self::with_keys(keys, relays).await
+    }
+
     pub fn public_key(&self) -> PublicKey {
         self.keys.public_key()
+    }
+
+    /// Hex-encoded secret key, for persisting the session.
+    ///
+    /// Handle as a secret: on signet it guards nothing, but the same value on
+    /// mainnet would be worth stealing. Never log it.
+    pub fn secret_key_hex(&self) -> String {
+        self.keys.secret_key().to_secret_hex()
     }
 
     pub fn relays(&self) -> &[String] {

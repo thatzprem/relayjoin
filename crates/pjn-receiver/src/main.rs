@@ -14,6 +14,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope};
 use pjn_wallet::receiver::{self, FeePolicy, SeenInputs};
+use pjn_wallet::session::{self, ReceiverSession, DEFAULT_SESSION_FILE};
 use pjn_wallet::signet::SignetWallet;
 use pjn_wallet::uri::NostrRoute;
 use pjn_wallet::{Address, Amount};
@@ -43,6 +44,10 @@ struct Cli {
     #[arg(long, env = "PJN_RELAYS", default_value = DEFAULT_RELAYS, global = true)]
     relays: String,
 
+    /// Where to keep session state so a payjoin survives a restart.
+    #[arg(long, default_value = DEFAULT_SESSION_FILE, global = true)]
+    session_file: std::path::PathBuf,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -58,6 +63,9 @@ enum Command {
 
     /// Sync the wallet and show its balance and next receive address.
     Status,
+
+    /// Forget any saved session, invalidating its payjoin URI.
+    Reset,
 
     /// Print a payjoin URI and wait for a sender.
     Serve {
@@ -92,6 +100,11 @@ async fn main() -> Result<()> {
     if matches!(cli.command, Command::Keygen) {
         return keygen();
     }
+    if matches!(cli.command, Command::Reset) {
+        session::clear(&cli.session_file)?;
+        println!("Session cleared. Any URI printed from it can no longer be used.");
+        return Ok(());
+    }
 
     let relays = parse_relays(&cli.relays)?;
 
@@ -107,7 +120,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         // Handled above, before the wallet is built.
-        Command::Keygen => unreachable!("keygen returns early"),
+        Command::Keygen | Command::Reset => unreachable!("handled before the wallet is built"),
         Command::Status => status(&mut wallet),
         Command::Serve {
             amount,
@@ -120,6 +133,7 @@ async fn main() -> Result<()> {
                 Amount::from_sat(amount),
                 Duration::from_secs(timeout_secs),
                 keep_alive,
+                &cli.session_file,
             )
             .await
         }
@@ -187,6 +201,7 @@ async fn serve(
     amount: Amount,
     timeout: Duration,
     keep_alive: bool,
+    session_file: &std::path::Path,
 ) -> Result<()> {
     tracing::info!("syncing wallet");
     wallet.full_scan()?;
@@ -197,19 +212,60 @@ async fn serve(
          input, so fund it first (https://faucet.mutinynet.com)"
     );
 
-    let address = wallet.next_address().address;
+    // Resume the previous session if there is one, so the URI already handed to a
+    // payer keeps working. Generating a fresh key here would silently invalidate
+    // it, which is exactly the bug this file exists to prevent.
+    let existing: Option<ReceiverSession> = session::load(session_file)?;
 
-    // A fresh key per URI. Reusing one would let relays link every payment this
-    // receiver coordinates; see docs/threat-model.md.
-    let transport = NostrTransport::ephemeral(relays).await?;
+    let (transport, mut state) = match existing {
+        Some(state) => {
+            tracing::info!(path = %session_file.display(), "resuming saved session");
+            let transport = NostrTransport::from_secret_hex(&state.secret_key, relays).await?;
+            (transport, state)
+        }
+        None => {
+            // A fresh key per URI. Reusing one across URIs would let relays link
+            // every payment this receiver coordinates; see docs/threat-model.md.
+            let transport = NostrTransport::ephemeral(relays).await?;
+            let state = ReceiverSession {
+                secret_key: transport.secret_key_hex(),
+                relays: relays.to_vec(),
+                address: wallet.next_address().address.to_string(),
+                amount_sat: amount.to_sat(),
+                seen_inputs: Vec::new(),
+            };
+            session::save(session_file, &state)?;
+            tracing::info!(path = %session_file.display(), "started a new session");
+            (transport, state)
+        }
+    };
+
+    let address: Address = state
+        .address
+        .parse::<Address<bitcoin::address::NetworkUnchecked>>()
+        .context("session file holds an unparseable address")?
+        .require_network(bitcoin::Network::Signet)
+        .context("session file holds an address for the wrong network")?;
+    let amount = Amount::from_sat(state.amount_sat);
+
     let route = NostrRoute::new(transport.public_key().to_hex(), relays.to_vec())?;
-
     print_uri(&address, amount, &route)?;
 
-    let mut seen = SeenInputs::new();
+    let mut seen = state.seen();
     loop {
-        match run_one_session(wallet, &transport, &mut seen, timeout).await {
+        let outcome = run_one_session(wallet, &transport, &mut seen, timeout).await;
+
+        // Persist what we have seen regardless of outcome. A rejected proposal
+        // still taught us outpoints, and forgetting them would let a prober
+        // retry after any failure.
+        state.record_seen(&seen);
+        session::save(session_file, &state)?;
+
+        match outcome {
             Ok(true) => {
+                // The session key has served its purpose; leaving it on disk
+                // would keep a spent secret around for no reason.
+                session::clear(session_file)?;
                 if !keep_alive {
                     break;
                 }
