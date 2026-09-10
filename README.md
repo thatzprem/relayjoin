@@ -58,17 +58,22 @@ runs a server.
 
 | Component | State |
 |---|---|
-| `pjn-transport` — NIP-59 gift-wrapped payjoin transport | **Compiles; 2 unit tests passed before SAC blocked local execution** |
-| `pjn-wallet` — binding to the payjoin state machines | **Written, not yet compiled** (see Known blocker) |
+| `pjn-transport` — NIP-59 gift-wrapped payjoin transport | **Verified against live public relays** |
+| `pjn-wallet` — binding to the payjoin state machines | **Compiles, 2 tests pass** |
 | `pjn-receiver` / `pjn-sender` — CLIs | Skeleton |
 | Live two-terminal signet demo | Not yet |
 
-`cargo test -p pjn-transport` passed when it was first run (2 tests). It can no
-longer be run on this machine at all: Smart App Control now blocks the compiled
-test binary as well as the build scripts, so **nothing in this workspace can be
-executed locally on Windows**. Verification happens in CI or under WSL.
+**The core claim is verified.** A gift-wrapped payjoin envelope round-trips
+through real public relays (`relay.damus.io`, `nos.lol`) in ~4 seconds, and the
+sealed sender key survives, which is what makes reply routing work without a
+separate handshake. CI run
+[34476319227](https://github.com/thatzprem/payjoin-nostr/actions/runs/34476319227),
+gift wrap `8da3a122ce630570efd435a3f8d60061fc8ff9e5ab5b715b153fdad45eebf804`.
 
-A live relay round-trip test exists and is `#[ignore]`d because it needs network:
+4 unit tests pass plus that live test. Note that **nothing in this workspace can
+be executed on the primary Windows dev machine** — Smart App Control blocks both
+cargo's build scripts and the compiled test binaries — so CI is the source of
+truth. The live test is `#[ignore]`d so it only runs on demand:
 
 ```bash
 cargo test -p pjn-transport --test roundtrip -- --ignored --nocapture
