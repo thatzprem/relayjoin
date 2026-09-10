@@ -32,6 +32,11 @@
 //! not nostr, so a bridge is needed for cross-transport payments. See
 //! `docs/interop.md`.
 
+pub mod receiver;
+pub mod signet;
+pub mod uri;
+pub use receiver::{FeePolicy, ReceiverWallet, SeenInputs};
+
 use anyhow::{Context, Result};
 use payjoin::receive::v1::{Headers, UncheckedOriginalPayload};
 use payjoin::send::v1::SenderBuilder;
