@@ -33,6 +33,7 @@
 //! `docs/interop.md`.
 
 pub mod receiver;
+pub mod sender;
 pub mod signet;
 pub mod uri;
 pub use receiver::{FeePolicy, ReceiverWallet, SeenInputs};

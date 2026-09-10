@@ -1600,11 +1600,16 @@ name = "pjn-sender"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bitcoin",
+ "clap",
+ "pjn-transport",
+ "pjn-wallet",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

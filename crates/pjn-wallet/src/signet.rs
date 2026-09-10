@@ -89,6 +89,61 @@ impl SignetWallet {
             .context("broadcasting transaction")
     }
 
+    /// Build and sign the Original PSBT a payjoin sender starts from.
+    ///
+    /// BIP78 requires this to be fully signed and broadcastable before it is
+    /// shown to the receiver. That is what makes it a usable fallback, and it is
+    /// also what stops a sender from using payjoin requests to probe a receiver's
+    /// UTXO set for free — the sender has to commit real, spendable coins first.
+    pub fn create_original_psbt(
+        &mut self,
+        recipient: &bdk_wallet::bitcoin::Address,
+        amount: bdk_wallet::bitcoin::Amount,
+        fee_rate: bdk_wallet::bitcoin::FeeRate,
+    ) -> Result<Psbt> {
+        let mut psbt = {
+            let mut builder = self.wallet.build_tx();
+            builder
+                .add_recipient(recipient.script_pubkey(), amount)
+                .fee_rate(fee_rate);
+            builder
+                .finish()
+                .context("building the original transaction")?
+        };
+
+        let finalized = self
+            .wallet
+            .sign(&mut psbt, SignOptions::default())
+            .context("signing the original PSBT")?;
+        anyhow::ensure!(
+            finalized,
+            "could not fully sign the original PSBT — payjoin requires a \
+             broadcastable original before the receiver will engage"
+        );
+        Ok(psbt)
+    }
+
+    /// Sign our inputs in a validated Payjoin Proposal and extract the final tx.
+    ///
+    /// Only ever call this on a PSBT that has been through
+    /// [`crate::sender::validate_proposal`]. The receiver rewrote this
+    /// transaction, and signing an unvalidated rewrite is how a sender loses
+    /// money.
+    pub fn finalize_payjoin(&self, psbt: &Psbt) -> Result<Transaction> {
+        let mut psbt = psbt.clone();
+        let options = SignOptions {
+            trust_witness_utxo: true,
+            ..Default::default()
+        };
+        self.wallet
+            .sign(&mut psbt, options)
+            .context("signing the payjoin proposal")?;
+
+        psbt.clone()
+            .extract_tx()
+            .context("extracting the final payjoin transaction")
+    }
+
     /// Build the [`InputPair`] payjoin needs from one of our UTXOs.
     ///
     /// Only `witness_utxo` is populated, which is correct for the segwit
