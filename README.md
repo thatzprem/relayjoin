@@ -61,8 +61,8 @@ runs a server.
 | `pjn-transport` — NIP-59 gift-wrapped payjoin transport | **Verified against live public relays** |
 | `pjn-wallet` — binding to the payjoin state machines | **Compiles, 2 tests pass** |
 | `pjn-receiver` — receiver daemon | **Built: URI, relay listen, full validation walk, signed proposal** |
-| `pjn-sender` — sender CLI | Skeleton |
-| Live two-terminal signet demo | Not yet |
+| `pjn-sender` — sender CLI | **Built: URI parsing, proposal validation, fallback** |
+| Live two-terminal signet demo | **Documented** ([demo/](demo/)); not yet run end to end |
 
 **The core claim is verified.** A gift-wrapped payjoin envelope round-trips
 through real public relays (`relay.damus.io`, `nos.lol`) in ~4 seconds, and the
@@ -71,7 +71,7 @@ separate handshake. CI run
 [34476319227](https://github.com/thatzprem/payjoin-nostr/actions/runs/34476319227),
 gift wrap `8da3a122ce630570efd435a3f8d60061fc8ff9e5ab5b715b153fdad45eebf804`.
 
-22 unit tests pass plus that live test. Note that **nothing in this workspace can
+25 unit tests pass plus that live test. Note that **nothing in this workspace can
 be executed on the primary Windows dev machine** — Smart App Control blocks both
 cargo's build scripts and the compiled test binaries — so CI is the source of
 truth. The live test is `#[ignore]`d so it only runs on demand:

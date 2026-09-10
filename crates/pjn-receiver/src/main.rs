@@ -49,6 +49,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Generate a fresh signet descriptor pair.
+    ///
+    /// Both parties need one. Signet coins have no value, so these are printed
+    /// to stdout rather than managed as secrets — do not reuse this command's
+    /// output for anything on mainnet.
+    Keygen,
+
     /// Sync the wallet and show its balance and next receive address.
     Status,
 
@@ -79,20 +86,28 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
+
+    // Keygen needs no wallet, and requiring a descriptor to produce one would be
+    // a chicken-and-egg problem for a first-time user.
+    if matches!(cli.command, Command::Keygen) {
+        return keygen();
+    }
+
     let relays = parse_relays(&cli.relays)?;
 
     let descriptor = cli
         .descriptor
         .as_deref()
-        .context("--descriptor is required (or set PJN_DESCRIPTOR)")?;
-    let change_descriptor = cli
-        .change_descriptor
-        .as_deref()
-        .context("--change-descriptor is required (or set PJN_CHANGE_DESCRIPTOR)")?;
+        .context("--descriptor is required (or set PJN_DESCRIPTOR); run `keygen` to make one")?;
+    let change_descriptor = cli.change_descriptor.as_deref().context(
+        "--change-descriptor is required (or set PJN_CHANGE_DESCRIPTOR); run `keygen` to make one",
+    )?;
 
     let mut wallet = SignetWallet::new(descriptor, change_descriptor, &cli.esplora)?;
 
     match cli.command {
+        // Handled above, before the wallet is built.
+        Command::Keygen => unreachable!("keygen returns early"),
         Command::Status => status(&mut wallet),
         Command::Serve {
             amount,
@@ -109,6 +124,24 @@ async fn main() -> Result<()> {
             .await
         }
     }
+}
+
+/// Print a fresh signet descriptor pair.
+fn keygen() -> Result<()> {
+    use bitcoin::bip32::Xpriv;
+    use bitcoin::Network;
+
+    let mut seed = [0u8; 32];
+    getrandom::fill(&mut seed).context("gathering entropy for a new key")?;
+    let master = Xpriv::new_master(Network::Signet, &seed).context("deriving master key")?;
+
+    // BIP84 account 0 on testnet coin type, which is what signet uses.
+    println!("export PJN_DESCRIPTOR=\"wpkh({master}/84'/1'/0'/0/*)\"");
+    println!("export PJN_CHANGE_DESCRIPTOR=\"wpkh({master}/84'/1'/0'/1/*)\"");
+    println!();
+    println!("# Signet coins have no value, so this key is printed in the clear.");
+    println!("# Never use this command's output on mainnet.");
+    Ok(())
 }
 
 fn parse_relays(raw: &str) -> Result<Vec<String>> {

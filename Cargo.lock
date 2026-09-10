@@ -1584,7 +1584,9 @@ name = "pjn-receiver"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bitcoin",
  "clap",
+ "getrandom 0.4.3",
  "pjn-transport",
  "pjn-wallet",
  "serde",
