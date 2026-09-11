@@ -89,63 +89,36 @@ separate handshake. CI run
 [34476319227](https://github.com/thatzprem/payjoin-nostr/actions/runs/34476319227),
 gift wrap `8da3a122ce630570efd435a3f8d60061fc8ff9e5ab5b715b153fdad45eebf804`.
 
-25 unit tests pass plus that live test. Note that **nothing in this workspace can
-be executed on the primary Windows dev machine** — Smart App Control blocks both
-cargo's build scripts and the compiled test binaries — so CI is the source of
-truth. The live test is `#[ignore]`d so it only runs on demand:
+33 unit tests pass plus that live test. The live test is `#[ignore]`d so it only
+runs on demand:
 
 ```bash
 cargo test -p pjn-transport --test roundtrip -- --ignored --nocapture
 ```
 
-## Known blocker: Smart App Control
+## Running it on Windows
 
-This machine has **Windows Smart App Control enforced**, which blocks execution of
-the unsigned build scripts cargo compiles. Anything pulling `secp256k1-sys`,
-`bitcoin-io`, or `hex_lit` fails with:
+Two environment gotchas cost real time here, both caused by local security
+software rather than by the project:
 
-```
-An Application Control policy has blocked this file. (os error 4551)
-```
+**TLS interception.** AV products that scan HTTPS insert their own root
+certificate. Libraries that ship Mozilla's root list reject it with
+`UnknownIssuer`, which surfaced as "could not connect to any relay" and as an
+Esplora sync failure. Both `nostr-sdk` and `bdk_esplora` are therefore configured
+to use the **system trust store**, which is the right default for a wallet
+regardless.
 
-It also blocks **every freshly built test binary**, including ones that ran
-successfully minutes earlier, so no test in this workspace can be run locally. Moving `CARGO_TARGET_DIR` does not help — the policy is
-not path-scoped.
+**Smart App Control.** While enforced, it blocks the unsigned build scripts cargo
+generates (`secp256k1-sys`, `bitcoin-io`, `hex_lit`) with
+`os error 4551`, and blocks freshly compiled test binaries too. It stopped
+blocking this workspace once the binaries accumulated reputation, and the full
+demo now builds and runs locally. If you hit it on a fresh machine, build under
+WSL2 or in CI rather than disabling Smart App Control — turning it off is
+**irreversible** without reinstalling Windows.
 
-### Fix: build in WSL2
-
-Smart App Control does not apply inside the Linux VM, and the Bitcoin/Rust
-toolchain is better supported there regardless. The WSL app package (2.3.26.0) is
-already installed on this machine, but the Windows features behind it are not
-enabled, which is what produces `REGDB_E_CLASS_NOT_REGISTERED`.
-
-In an **Administrator** PowerShell:
-
-```powershell
-wsl --install -d Ubuntu
-```
-
-If that still reports "Class not registered", enable the features explicitly and
-reboot:
-
-```powershell
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-```
-
-Then, inside Ubuntu:
-
-```bash
-sudo apt update && sudo apt install -y build-essential pkg-config libssl-dev
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Work from the Linux filesystem (`~/payjoin-nostr`), not `/mnt/c` — cargo builds
-are several times slower across the 9p mount.
-
-Other options, if you'd rather not install WSL: build in CI/Docker (slow loop), or
-turn Smart App Control off (Windows Security → App & browser control).
-⚠️ Turning it off is **irreversible** — re-enabling requires reinstalling Windows.
+If cargo cannot reach crates.io with `CRYPT_E_NO_REVOCATION_CHECK`, that is the
+same class of problem; `.cargo/config.toml` in this repo already disables the
+revocation probe while leaving chain verification intact.
 
 ## Explaining it to other people
 
