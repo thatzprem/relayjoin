@@ -335,13 +335,20 @@ async fn run_one_session(
     // Walk the full validation typestate. Any failure here is reported back as a
     // generic error: telling a sender *which* check it failed would help it map
     // our wallet.
-    let proposal = match receiver::respond(&envelope.payload, wallet, seen, FeePolicy::default()) {
+    let proposal = match receiver::respond(
+        &envelope.payload,
+        &envelope.params,
+        wallet,
+        seen,
+        FeePolicy::default(),
+    ) {
         Ok(bytes) => bytes,
         Err(e) => {
             tracing::warn!(error = %e, "rejecting proposal");
             let reply = PayjoinEnvelope {
                 leg: Leg::Error,
                 session: envelope.session,
+                params: String::new(),
                 payload: b"payjoin request rejected".to_vec(),
             };
             transport.send(sender, &reply).await?;
@@ -352,6 +359,7 @@ async fn run_one_session(
     let reply = PayjoinEnvelope {
         leg: Leg::Proposal,
         session: envelope.session.clone(),
+        params: String::new(),
         payload: proposal,
     };
     let event_id = transport.send(sender, &reply).await?;

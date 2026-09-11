@@ -42,6 +42,12 @@ use serde::{Deserialize, Serialize};
 /// visible to the two participants after unsealing.
 pub const KIND_PAYJOIN_RUMOR: u16 = 21177;
 
+/// How long to wait for relay sockets before giving up on a relay.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How long to spend collecting already-stored events before waiting for new ones.
+const BACKLOG_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Which leg of the BIP77 exchange a payload represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -65,6 +71,15 @@ pub struct PayjoinEnvelope {
     pub leg: Leg,
     /// Session identifier, echoed back so a receiver can run many payjoins at once.
     pub session: String,
+    /// BIP78 protocol parameters, as the query string an HTTP sender would have
+    /// put in its request line (`v`, `maxadditionalfeecontribution`, `minfeerate`
+    /// and friends).
+    ///
+    /// These are not decoration. They are the sender's constraints on what the
+    /// receiver may change, and a receiver that never sees them will make an
+    /// unauthorised edit and have its proposal rejected.
+    #[serde(default)]
+    pub params: String,
     #[serde(with = "b64")]
     pub payload: Vec<u8>,
 }
@@ -112,7 +127,32 @@ impl NostrTransport {
                 .await
                 .with_context(|| format!("adding relay {url}"))?;
         }
-        client.connect().await;
+        // `connect()` only *starts* the connections and returns immediately, so a
+        // send issued right after it fails with "relay not connected" and, before
+        // `send` checked its per-relay results, did so silently. Wait for the
+        // sockets to actually come up.
+        let output = client.try_connect().timeout(CONNECT_TIMEOUT).await;
+
+        for (relay, error) in &output.failed {
+            tracing::warn!(%relay, %error, "relay did not connect");
+        }
+
+        if output.success.is_empty() {
+            let reasons = output
+                .failed
+                .iter()
+                .map(|(relay, error)| format!("{relay}: {error}"))
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(anyhow!("could not connect to any relay ({reasons})"));
+        }
+
+        tracing::info!(
+            connected = output.success.len(),
+            unreachable = output.failed.len(),
+            "relays connected"
+        );
+
         Ok(Self {
             client,
             keys,
@@ -171,6 +211,33 @@ impl NostrTransport {
             .send_event(&wrapped)
             .await
             .context("publishing gift wrap")?;
+
+        // send_event resolves Ok even when every relay refused the event, so the
+        // per-relay outcome has to be inspected. Treating a refusal as success is
+        // how a sender ends up believing a payjoin is in flight while nothing was
+        // ever stored — relays reject for write policy, proof-of-work and rate
+        // limits, and a throwaway key trips exactly those rules.
+        for (relay, error) in &output.failed {
+            tracing::warn!(%relay, %error, "relay refused the gift wrap");
+        }
+
+        if output.success.is_empty() {
+            let reasons = output
+                .failed
+                .iter()
+                .map(|(relay, error)| format!("{relay}: {error}"))
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(anyhow!(
+                "no relay accepted the payjoin payload, so it is not stored anywhere                  and the peer will never see it ({reasons})"
+            ));
+        }
+
+        tracing::info!(
+            accepted = output.success.len(),
+            refused = output.failed.len(),
+            "gift wrap published"
+        );
         Ok(*output.id())
     }
 
@@ -188,10 +255,36 @@ impl NostrTransport {
             .pubkey(self.keys.public_key())
             .since(since);
 
-        // Take the notification stream BEFORE issuing the REQ. A relay dumps
-        // everything it already has the instant it sees the subscription, so
-        // subscribing first drops exactly the stored events this transport
-        // exists to collect — the payload left for a receiver that was offline.
+        // Collect the backlog explicitly first. This is the case the whole design
+        // exists for: a receiver that was offline when the sender published, and
+        // is now back for a payload the relays held. Relying on the live
+        // subscription to replay it is not something the notification stream
+        // guarantees, so ask for it directly instead of hoping.
+        let stored = self
+            .client
+            .fetch_events(filter.clone())
+            .timeout(BACKLOG_TIMEOUT)
+            .await
+            .context("fetching stored gift wraps")?;
+
+        if !stored.is_empty() {
+            tracing::info!(count = stored.len(), "found stored gift wraps waiting");
+        }
+        for event in stored {
+            match self.unwrap_envelope(&event) {
+                Ok(Some(hit)) => return Ok(Some(hit)),
+                Ok(None) => continue,
+                Err(e) => {
+                    tracing::debug!(error = %e, "skipping undecryptable stored gift wrap");
+                    continue;
+                }
+            }
+        }
+
+        // Nothing waiting, so wait for something new. Take the notification
+        // stream BEFORE issuing the REQ: a relay dumps what it has the instant it
+        // sees a subscription, and subscribing first drops anything that lands in
+        // the gap.
         let mut notifications = self.client.notifications();
 
         self.client
@@ -250,6 +343,7 @@ mod tests {
         let envelope = PayjoinEnvelope {
             leg: Leg::OriginalPsbt,
             session: "s1".into(),
+            params: "v=1".into(),
             payload: vec![0xde, 0xad, 0xbe, 0xef],
         };
         let encoded = serde_json::to_string(&envelope).unwrap();
@@ -265,6 +359,7 @@ mod tests {
         let envelope = PayjoinEnvelope {
             leg: Leg::Proposal,
             session: "s1".into(),
+            params: String::new(),
             payload: b"psbt".to_vec(),
         };
         let encoded = serde_json::to_string(&envelope).unwrap();

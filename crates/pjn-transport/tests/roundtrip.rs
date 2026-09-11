@@ -50,6 +50,7 @@ async fn original_psbt_round_trips_through_public_relays() {
     let envelope = PayjoinEnvelope {
         leg: Leg::OriginalPsbt,
         session: "roundtrip-test".to_string(),
+        params: "v=1".to_string(),
         payload: b"not-a-real-psbt-but-opaque-to-the-transport".to_vec(),
     };
     let event_id = sender.send(receiver_pk, &envelope).await.expect("send");

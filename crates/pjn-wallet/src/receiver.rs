@@ -121,11 +121,12 @@ impl Default for FeePolicy {
 /// silence or a generic error leaks information about its own wallet.
 pub fn respond(
     original_psbt_bytes: &[u8],
+    params: &str,
     wallet: &impl ReceiverWallet,
     seen: &mut SeenInputs,
     fees: FeePolicy,
 ) -> Result<Vec<u8>> {
-    let unchecked = crate::parse_original_psbt(original_psbt_bytes)?;
+    let unchecked = crate::parse_original_psbt(original_psbt_bytes, params)?;
 
     // 1. Is the fallback transaction actually broadcastable?
     let maybe_inputs_owned = unchecked

@@ -98,7 +98,8 @@ async fn main() -> Result<()> {
     let fallback = sender::fallback_tx(&original_psbt)?;
     tracing::info!(txid = %fallback.compute_txid(), "original (fallback) transaction ready");
 
-    let (request_bytes, context) = sender::create_request(original_psbt, invoice.pj_uri, fee_rate)?;
+    let (params, request_bytes, context) =
+        sender::create_request(original_psbt, invoice.pj_uri, fee_rate)?;
 
     // Ephemeral identity: the receiver learns our key only after unsealing, and
     // relays never see it at all.
@@ -113,6 +114,7 @@ async fn main() -> Result<()> {
     let envelope = PayjoinEnvelope {
         leg: Leg::OriginalPsbt,
         session: session.clone(),
+        params,
         payload: request_bytes,
     };
 

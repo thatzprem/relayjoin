@@ -59,12 +59,30 @@ runs a server.
 | Component | State |
 |---|---|
 | `pjn-transport` — NIP-59 gift-wrapped payjoin transport | **Verified against live public relays** |
-| `pjn-wallet` — binding to the payjoin state machines | **Compiles, 2 tests pass** |
+| `pjn-wallet` — binding to the payjoin state machines | **Working end to end** |
 | `pjn-receiver` — receiver daemon | **Built: URI, relay listen, full validation walk, signed proposal** |
 | `pjn-sender` — sender CLI | **Built: URI parsing, proposal validation, fallback** |
-| Live two-terminal signet demo | **Documented** ([demo/](demo/)); not yet run end to end |
+| Live two-terminal signet demo | **Run end to end; confirmed on-chain** |
 
-**The core claim is verified.** A gift-wrapped payjoin envelope round-trips
+**A real payjoin has completed over public nostr relays, with the receiver
+offline when the sender paid.** Signet txid
+[`7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17`](https://mutinynet.com/tx/7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17),
+confirmed in block 3,416,929:
+
+```
+INPUTS  (2)                                  OUTPUTS (2)
+  tb1qtp82v...  100,000 sat  (receiver)        tb1q08zvq...   69,583 sat
+  tb1qrdv0g...  100,000 sat  (sender)          tb1qrtrhj...  130,000 sat
+```
+
+Two inputs, two different owners. Any analyst applying the common-input-ownership
+heuristic concludes one entity owns both and gets it wrong. The actual payment was
+**30,000 sat** — a number that appears nowhere in the outputs.
+
+The receiver was not running when the sender published. It was started afterwards,
+resumed its session from disk, and collected the payload the relays had held.
+
+**The transport claim is verified.** A gift-wrapped payjoin envelope round-trips
 through real public relays (`relay.damus.io`, `nos.lol`) in ~4 seconds, and the
 sealed sender key survives, which is what makes reply routing work without a
 separate handshake. CI run

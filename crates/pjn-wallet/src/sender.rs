@@ -65,7 +65,7 @@ pub fn create_request(
     original_psbt: Psbt,
     pj_uri: PjUri,
     min_fee_rate: FeeRate,
-) -> Result<(Vec<u8>, V1Context)> {
+) -> Result<(String, Vec<u8>, V1Context)> {
     crate::build_original_psbt(original_psbt, pj_uri, min_fee_rate)
 }
 

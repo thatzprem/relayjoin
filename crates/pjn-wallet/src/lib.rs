@@ -84,18 +84,26 @@ pub fn build_original_psbt(
     psbt: Psbt,
     uri: PjUri,
     min_fee_rate: FeeRate,
-) -> Result<(Vec<u8>, payjoin::send::v1::V1Context)> {
+) -> Result<(String, Vec<u8>, payjoin::send::v1::V1Context)> {
     let sender = SenderBuilder::new(psbt, uri)
         .build_recommended(min_fee_rate)
         .map_err(|e| anyhow::anyhow!("building payjoin sender: {e:?}"))?;
 
     let (request, context): (Request, _) = sender.create_v1_post_request();
 
-    // We deliberately drop `request.url`. Over HTTP it is the receiver's endpoint;
-    // over nostr the routing lives in the gift wrap's `p` tag instead, and the
-    // body is the only part of the request that carries protocol meaning.
+    // The URL's *host* is meaningless to us — routing lives in the gift wrap's
+    // `p` tag. Its *query* is not: payjoin encodes the sender's constraints there
+    // (`v`, `maxadditionalfeecontribution`, `minfeerate`, output substitution).
+    // Dropping it makes the receiver edit the transaction in ways the sender
+    // never authorised, and the proposal is then correctly rejected.
     debug_assert_eq!(request.content_type, "text/plain");
-    Ok((request.body, context))
+    let query = request
+        .url
+        .split_once('?')
+        .map(|(_, query)| query.to_string())
+        .unwrap_or_default();
+
+    Ok((query, request.body, context))
 }
 
 /// The receiver's half: parse bytes that arrived over nostr into the protocol's
@@ -105,12 +113,11 @@ pub fn build_original_psbt(
 /// broadcast suitability, input ownership, and so on. Those checks are the
 /// receiver's protection against a malicious sender probing its UTXO set, so the
 /// caller must not skip them.
-pub fn parse_original_psbt(body: &[u8]) -> Result<UncheckedOriginalPayload> {
+pub fn parse_original_psbt(body: &[u8], query: &str) -> Result<UncheckedOriginalPayload> {
     let headers = NostrHeaders::for_body(body);
-    // The v1 receiver reads protocol options (`v`, `maxadditionalfeecontribution`,
-    // and friends) from the query string. Senders built by `build_original_psbt`
-    // encode them in the URI they were given, so an empty query is correct here.
-    UncheckedOriginalPayload::from_request(body, "", headers)
+    // `query` carries the sender's constraints, forwarded verbatim from the
+    // envelope. An empty string here is almost always a bug in the caller.
+    UncheckedOriginalPayload::from_request(body, query, headers)
         .map_err(|e| anyhow::anyhow!("parsing original PSBT from nostr payload: {e:?}"))
 }
 
