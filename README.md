@@ -147,6 +147,22 @@ Other options, if you'd rather not install WSL: build in CI/Docker (slow loop), 
 turn Smart App Control off (Windows Security → App & browser control).
 ⚠️ Turning it off is **irreversible** — re-enabling requires reinstalling Windows.
 
+## Explaining it to other people
+
+Two write-ups of the same project, pitched at different readers:
+
+- [`docs/explainer.html`](docs/explainer.html) — plain English, no jargon. Why
+  Bitcoin payments are public at all, and why letting the shop chip in a coin
+  breaks the assumption surveillance runs on. Start here if Bitcoin is not your
+  day job.
+- [`docs/report.html`](docs/report.html) — the same real transaction rendered as
+  a chain-analysis readout, with every conclusion the analyst would confidently
+  draw and why each one is wrong. Toggles between the inferred reading and the
+  true one.
+
+Both are built from the actual signet payment in the Status table above, not from
+worked examples.
+
 ## Threat model
 
 Read [`docs/threat-model.md`](docs/threat-model.md) before claiming any privacy

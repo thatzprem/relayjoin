@@ -1,0 +1,802 @@
+<title>Payjoin over Nostr</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    /* Light: a cool blue-grey ledger stock, not paper-cream. */
+    --ground:      #E9EDF2;
+    --surface:     #FBFCFD;
+    --surface-2:   #F1F4F8;
+    --ink:         #111923;
+    --ink-soft:    #5A6674;
+    --ink-faint:   #8B96A3;
+    --rule:        #C6D0DB;
+    --rule-strong: #A7B4C3;
+    /* Semantic, and doing real work: what the analyst infers vs what is true. */
+    --inferred:    #AC3B25;
+    --inferred-bg: #F7E4DF;
+    --actual:      #1B6349;
+    --actual-bg:   #DCEDE5;
+    --accent:      #2C578A;
+    --accent-bg:   #DEE7F2;
+
+    --measure: 66ch;
+    --radius: 3px;
+
+    --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0D131A;
+      --surface:     #141C25;
+      --surface-2:   #1A242F;
+      --ink:         #E3E9F0;
+      --ink-soft:    #94A1AF;
+      --ink-faint:   #6B7987;
+      --rule:        #263240;
+      --rule-strong: #364556;
+      --inferred:    #E58367;
+      --inferred-bg: #35201B;
+      --actual:      #52B189;
+      --actual-bg:   #13291F;
+      --accent:      #7BA6D6;
+      --accent-bg:   #1A2735;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D131A;
+    --surface:     #141C25;
+    --surface-2:   #1A242F;
+    --ink:         #E3E9F0;
+    --ink-soft:    #94A1AF;
+    --ink-faint:   #6B7987;
+    --rule:        #263240;
+    --rule-strong: #364556;
+    --inferred:    #E58367;
+    --inferred-bg: #35201B;
+    --actual:      #52B189;
+    --actual-bg:   #13291F;
+    --accent:      #7BA6D6;
+    --accent-bg:   #1A2735;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 20px 96px;
+  }
+
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  .prose { max-width: var(--measure); }
+
+  /* ---- type scale ---- */
+  h1, h2, h3, .eyebrow, .chip, .label, th, button {
+    font-family: var(--f-display);
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.05rem);
+    line-height: 1.04;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin: 0 0 18px;
+  }
+
+  h2 {
+    font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0 0 14px;
+  }
+
+  h3 {
+    font-size: 1.02rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin: 0 0 8px;
+  }
+
+  p { margin: 0 0 16px; }
+  strong { font-weight: 600; }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 10px;
+  }
+
+  .lede {
+    font-size: 1.16rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  code, .mono { font-family: var(--f-mono); font-size: 0.88em; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---- masthead ---- */
+  header.masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 26px;
+    margin-bottom: 44px;
+  }
+
+  .stamp {
+    display: inline-block;
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--inferred);
+    border: 1.5px solid var(--inferred);
+    padding: 4px 9px;
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+  }
+
+  .txid-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    align-items: baseline;
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--f-mono);
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+  }
+  .txid-bar .k { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+  .txid-bar .v { color: var(--ink); word-break: break-all; }
+
+  /* ---- sections ---- */
+  section { margin-bottom: 60px; }
+
+  /* ---- the centrepiece: two transactions ---- */
+  .toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+
+  .segmented {
+    display: inline-flex;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .segmented button {
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 9px 15px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .segmented button + button { border-left: 1px solid var(--rule-strong); }
+  .segmented button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+
+  .toggle-hint { font-size: 0.9rem; color: var(--ink-soft); }
+
+  .tx-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 20px;
+  }
+
+  .tx {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 20px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .tx.broadcast { border-color: var(--rule-strong); box-shadow: 0 1px 0 var(--rule-strong); }
+
+  .tx-head { display: flex; flex-direction: column; gap: 5px; }
+  .tx-head .title { font-family: var(--f-display); font-weight: 600; font-size: 1.02rem; }
+  .tx-head .sub { font-size: 0.82rem; color: var(--ink-soft); }
+
+  .io-block { display: flex; flex-direction: column; gap: 6px; }
+
+  .io-head {
+    font-family: var(--f-display);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .io {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .io:last-child { border-bottom: 0; }
+
+  .io .addr {
+    font-family: var(--f-mono);
+    font-size: 0.76rem;
+    color: var(--ink);
+    word-break: break-all;
+  }
+  .io .amt {
+    font-family: var(--f-mono);
+    font-size: 0.83rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .io .note {
+    grid-column: 1 / -1;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .chip {
+    display: inline-block;
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip.inferred { background: var(--inferred-bg); color: var(--inferred); }
+  .chip.actual   { background: var(--actual-bg);   color: var(--actual); }
+  .chip.neutral  { background: var(--surface-2);   color: var(--ink-soft); }
+
+  .tx-foot {
+    font-family: var(--f-mono);
+    font-size: 0.73rem;
+    color: var(--ink-faint);
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* view switching — both states exist in the DOM, one is hidden */
+  .view-actual { display: none; }
+  [data-view="actual"] .view-actual { display: block; }
+  [data-view="actual"] .view-inferred { display: none; }
+  .io .note.view-actual, .io .note.view-inferred { display: none; }
+  [data-view="actual"] .io .note.view-actual { display: block; }
+  [data-view="inferred"] .io .note.view-inferred { display: block; }
+
+  /* ---- verdict readout ---- */
+  .verdict {
+    margin-top: 22px;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .verdict-head {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+    padding: 11px 18px;
+    font-family: var(--f-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .finding {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px 26px;
+    padding: 15px 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .finding:last-child { border-bottom: 0; }
+  .finding .q {
+    grid-column: 1 / -1;
+    font-family: var(--f-display);
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .finding .side { display: flex; flex-direction: column; gap: 5px; font-size: 0.9rem; line-height: 1.45; }
+  .finding .side .hdr {
+    font-family: var(--f-display);
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+  .finding .side.inf .hdr { color: var(--inferred); }
+  .finding .side.act .hdr { color: var(--actual); }
+
+  /* ---- comparison table ---- */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 540px; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-size: 0.67rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--surface-2);
+  }
+  tr:last-child td { border-bottom: 0; }
+  td.need { font-family: var(--f-display); font-weight: 600; }
+
+  /* ---- run log ---- */
+  .run { display: flex; flex-direction: column; gap: 0; border-left: 2px solid var(--rule-strong); }
+  .step { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; padding: 0 0 22px 20px; position: relative; }
+  .step:last-child { padding-bottom: 0; }
+  .step::before {
+    content: "";
+    position: absolute;
+    left: -6px; top: 7px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ground);
+    border: 2px solid var(--rule-strong);
+  }
+  .step.key::before { background: var(--actual); border-color: var(--actual); }
+  .step .t {
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .step .b { grid-column: 2; }
+  .step .t + .b { grid-column: 2; }
+  .step h3 { margin-bottom: 3px; }
+  .step p { margin: 0; font-size: 0.93rem; color: var(--ink-soft); }
+  @media (max-width: 620px) {
+    .step { grid-template-columns: 1fr; }
+    .step .b, .step .t + .b { grid-column: 1; }
+  }
+
+  /* ---- notes / caveats ---- */
+  .caveat {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--inferred);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .caveat h3 { color: var(--inferred); }
+  .caveat ul { margin: 0; padding-left: 20px; }
+  .caveat li { margin-bottom: 7px; }
+  .caveat li:last-child { margin-bottom: 0; }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 15px 17px;
+    overflow-x: auto;
+    margin: 0 0 12px;
+    font-family: var(--f-mono);
+    font-size: 0.8rem;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  pre .c { color: var(--ink-faint); }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 20px;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .io .note { transition: none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="stamp">Chain-analysis readout · every conclusion below is wrong</div>
+    <h1>The transaction that lies to its analyst</h1>
+    <p class="lede prose">
+      Almost all Bitcoin surveillance rests on one assumption: that every input to a
+      transaction belongs to the same person. Payjoin makes that assumption false.
+      This is a real payjoin, settled on signet, read first the way a chain analyst
+      would read it — and then the way it actually happened.
+    </p>
+    <div class="txid-bar">
+      <span><span class="k">txid</span> <span class="v">7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17</span></span>
+      <span><span class="k">block</span> <span class="v num">3,416,929</span></span>
+      <span><span class="k">fee</span> <span class="v num">417 sat</span></span>
+      <span><span class="k">network</span> <span class="v">signet</span></span>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">The heuristic</p>
+    <h2>Common-input-ownership</h2>
+    <div class="prose">
+      <p>
+        If a transaction spends two inputs, whoever signed it had to hold the keys to
+        both. So both inputs belong to one wallet. That inference is correct almost
+        every time, it is cheap to compute across the whole chain, and it is the
+        foundation the clustering step of every chain-analysis product is built on.
+      </p>
+      <p>
+        Payjoin breaks it by having the <em>receiver</em> contribute an input too. The
+        resulting transaction is signed by two parties and looks exactly like an
+        ordinary one-owner payment. Nothing marks it. The analyst cannot tell the
+        difference, applies the rule, and produces a confident, wrong answer.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Evidence</p>
+    <h2>The same payment, two shapes</h2>
+    <p class="prose">
+      The sender built an ordinary payment first — payjoin requires it, as a fallback
+      if the collaboration fails. Then it built the payjoin. Same 30,000 sat moving to
+      the same person. Compare what each one tells an observer.
+    </p>
+
+    <div class="toggle-row">
+      <div class="segmented" role="group" aria-label="Switch reading">
+        <button id="btn-inferred" aria-pressed="true">Analyst's reading</button>
+        <button id="btn-actual" aria-pressed="false">What actually happened</button>
+      </div>
+      <span class="toggle-hint">Switch the reading on the broadcast transaction.</span>
+    </div>
+
+    <div class="tx-grid" id="txgrid" data-view="inferred">
+
+      <article class="tx">
+        <div class="tx-head">
+          <span class="title">The plain payment</span>
+          <span class="sub">Built, signed, never broadcast — held as the fallback.</span>
+        </div>
+
+        <div class="io-block">
+          <div class="io-head">Input</div>
+          <div class="io">
+            <span class="addr">tb1qrdv0g8al9aheu8v2gj3esfd6v723eqresaswd0</span>
+            <span class="amt num">100,000</span>
+            <span class="note view-inferred"><span class="chip neutral">one owner</span> Correct.</span>
+            <span class="note view-actual"><span class="chip actual">sender</span> Correct.</span>
+          </div>
+        </div>
+
+        <div class="io-block">
+          <div class="io-head">Outputs</div>
+          <div class="io">
+            <span class="addr">tb1qrtrhjd2hnzcskgqvddtd9e7x4e3jrfeqp3zxr6</span>
+            <span class="amt num">30,000</span>
+            <span class="note view-inferred"><span class="chip neutral">payment</span> Correct.</span>
+            <span class="note view-actual"><span class="chip actual">payment</span> Correct.</span>
+          </div>
+          <div class="io">
+            <span class="addr">sender's change address</span>
+            <span class="amt num">≈ 69,700</span>
+            <span class="note view-inferred"><span class="chip neutral">change</span> Correct.</span>
+            <span class="note view-actual"><span class="chip actual">change</span> Correct.</span>
+          </div>
+        </div>
+
+        <div class="tx-foot">
+          <span>1 in · 2 out</span>
+          <span>analyst reads it perfectly</span>
+        </div>
+      </article>
+
+      <article class="tx broadcast">
+        <div class="tx-head">
+          <span class="title">The payjoin</span>
+          <span class="sub">Broadcast and confirmed in block 3,416,929.</span>
+        </div>
+
+        <div class="io-block">
+          <div class="io-head">Inputs</div>
+          <div class="io">
+            <span class="addr">tb1qtp82vmhpzlj7hjwg35xduxzt0qcc6xqv6h3gj5</span>
+            <span class="amt num">100,000</span>
+            <span class="note view-inferred"><span class="chip inferred">entity A</span> Same owner as the input below.</span>
+            <span class="note view-actual"><span class="chip actual">receiver</span> A different person entirely.</span>
+          </div>
+          <div class="io">
+            <span class="addr">tb1qrdv0g8al9aheu8v2gj3esfd6v723eqresaswd0</span>
+            <span class="amt num">100,000</span>
+            <span class="note view-inferred"><span class="chip inferred">entity A</span> Clustered with the input above.</span>
+            <span class="note view-actual"><span class="chip actual">sender</span> Never met the other input's owner on-chain before.</span>
+          </div>
+        </div>
+
+        <div class="io-block">
+          <div class="io-head">Outputs</div>
+          <div class="io">
+            <span class="addr">tb1q08zvqtjdwkw3a8st7fdq29t4nh0jmtejfusfcy</span>
+            <span class="amt num">69,583</span>
+            <span class="note view-inferred"><span class="chip inferred">change</span> Returned to entity A.</span>
+            <span class="note view-actual"><span class="chip actual">change</span> The sender's, and the only correct guess here.</span>
+          </div>
+          <div class="io">
+            <span class="addr">tb1qrtrhjd2hnzcskgqvddtd9e7x4e3jrfeqp3zxr6</span>
+            <span class="amt num">130,000</span>
+            <span class="note view-inferred"><span class="chip inferred">payment = 130,000</span> The amount that left entity A.</span>
+            <span class="note view-actual"><span class="chip actual">payment = 30,000</span> Plus the receiver's own 100,000 coming straight back to it.</span>
+          </div>
+        </div>
+
+        <div class="tx-foot">
+          <span>2 in · 2 out</span>
+          <span>indistinguishable from one-owner</span>
+        </div>
+      </article>
+    </div>
+
+    <div class="verdict">
+      <div class="verdict-head">Findings · inferred versus true</div>
+
+      <div class="finding">
+        <span class="q">How many people signed this transaction?</span>
+        <div class="side inf">
+          <span class="hdr">Inferred</span>
+          <span>One. Both inputs were spent together, so one key-holder controlled both.</span>
+        </div>
+        <div class="side act">
+          <span class="hdr">Actual</span>
+          <span>Two strangers, each signing only their own input, coordinating over relays neither of them runs.</span>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="q">How much was actually paid?</span>
+        <div class="side inf">
+          <span class="hdr">Inferred</span>
+          <span>130,000 sat — the output that isn't change.</span>
+        </div>
+        <div class="side act">
+          <span class="hdr">Actual</span>
+          <span>30,000 sat. The real figure appears in no output, in no input, and in no difference between them.</span>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="q">What does this tell us about the wallets involved?</span>
+        <div class="side inf">
+          <span class="hdr">Inferred</span>
+          <span>Two previously separate addresses now belong to one entity. Merge their clusters and everything either has ever touched.</span>
+        </div>
+        <div class="side act">
+          <span class="hdr">Actual</span>
+          <span>They belong to different people. The merge is false, and it propagates — every past and future inference drawn through that link inherits the error.</span>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="q">Is this transaction unusual?</span>
+        <div class="side inf">
+          <span class="hdr">Inferred</span>
+          <span>No. Two inputs, one payment, one change. The most ordinary shape on the chain.</span>
+        </div>
+        <div class="side act">
+          <span class="hdr">Actual</span>
+          <span>Correct, and that is the design. A payjoin that looked like a payjoin would flag itself; this one hides among the ordinary ones.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">The obstacle</p>
+    <h2>Why almost nobody can do this</h2>
+    <div class="prose">
+      <p>
+        Payjoin needs the receiver to add an input, so the transaction is built
+        <em>collaboratively</em>. Ordinary Bitcoin needs no such handshake: you publish
+        an address and can stay offline forever. Payjoin does — and that requirement is
+        what has kept the most effective privacy tool Bitcoin has almost entirely
+        undeployed.
+      </p>
+      <p>
+        <strong>BIP78</strong> required the receiver to be running an HTTPS endpoint at
+        the moment the sender paid. Workable for a merchant with a server. Impossible
+        for a phone. <strong>BIP77</strong> fixed the timing by adding a directory
+        server to hold the encrypted payloads and an OHTTP relay in front of it so the
+        directory never learns anyone's IP — solving the problem by requiring two new
+        pieces of infrastructure, run today by a very short list of operators.
+      </p>
+      <p>
+        Every one of those pieces already exists, deployed and plural, as nostr relays.
+      </p>
+    </div>
+
+    <div class="table-scroll" style="margin-top:22px">
+      <table>
+        <thead>
+          <tr><th>What async payjoin needs</th><th>BIP77 builds it</th><th>Nostr already has it</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="need">Store-and-forward</td>
+            <td>A payjoin directory someone operates</td>
+            <td>Relays — hundreds of independent operators</td>
+          </tr>
+          <tr>
+            <td class="need">Payload encryption</td>
+            <td>HPKE</td>
+            <td>NIP-44 seal, inside a NIP-59 gift wrap</td>
+          </tr>
+          <tr>
+            <td class="need">Metadata privacy</td>
+            <td>An OHTTP relay someone operates</td>
+            <td>A throwaway key per message</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="prose" style="margin-top:18px">
+      So the protocol stays BIP78 — simple, well understood, two messages — and nostr
+      carries the waiting. No directory. No OHTTP relay. No server either party runs.
+    </p>
+  </section>
+
+  <section>
+    <p class="eyebrow">The run that produced the transaction above</p>
+    <h2>The receiver was switched off</h2>
+    <p class="prose">
+      Not a simulation of being offline — the process was stopped. This is the sequence
+      that produced txid <code>7d55bfd7…647a17</code>.
+    </p>
+
+    <div class="run" style="margin-top:24px">
+      <div class="step">
+        <span class="t">earlier</span>
+        <div class="b">
+          <h3>The receiver prints a payjoin URI, then exits</h3>
+          <p>A nostr keypair is generated for this URI alone and written to disk with the address and amount. Then the process stops. Nothing is listening.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="t">03:25:25</span>
+        <div class="b">
+          <h3>The sender builds an ordinary payment and signs it</h3>
+          <p>Fully valid and broadcastable. It is the fallback if the collaboration fails, and BIP78 requires it to exist before the receiver will engage — which also means a sender must commit real coins before it can probe anyone.</p>
+        </div>
+      </div>
+      <div class="step key">
+        <span class="t">03:25:26</span>
+        <div class="b">
+          <h3>The sender publishes to three relays and gets an acknowledgement from each</h3>
+          <p>The payload is gift-wrapped under a throwaway key. The intended recipient is not connected, has not been for a minute, and this works anyway.</p>
+        </div>
+      </div>
+      <div class="step key">
+        <span class="t">03:26:06</span>
+        <div class="b">
+          <h3>The receiver is started again and finds the payload waiting</h3>
+          <p>It reloads its session key from disk, reprints the identical URI, asks the relays what they are holding, and gets back the original PSBT that arrived while it was switched off.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="t">03:26:16</span>
+        <div class="b">
+          <h3>The receiver checks the proposal, contributes one input, and signs</h3>
+          <p>Four validations run first: that the fallback is broadcastable, that none of the sender's inputs are the receiver's own, that these inputs have not been seen before, and that the transaction actually pays the receiver. The contributed input is chosen to avoid the unnecessary-input heuristic — the wrong coin here makes a payjoin <em>more</em> legible than a plain payment.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="t">seconds later</span>
+        <div class="b">
+          <h3>The sender validates the rewrite, signs, and broadcasts</h3>
+          <p>The proposal came back altered by someone the sender has no reason to trust, so it is checked against the original before a signature is added. Across earlier failed runs this step refused every time and fell back instead — which is what it is for.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">What we do not fix</p>
+    <h2>What a relay can still see</h2>
+    <p class="prose">
+      A privacy claim is only worth the part of it that survives the obvious question.
+      Relays in this run saw two kind-1059 events, each signed by a key generated for
+      that single message, addressed to a session key used for one payjoin URI, with a
+      randomised timestamp and sealed contents. They could not read the PSBT, the
+      amounts, the addresses, or link either party to a persistent identity.
+    </p>
+    <div class="caveat prose">
+      <h3>Open gaps, stated plainly</h3>
+      <ul>
+        <li><strong>IP addresses.</strong> A relay sees the IP of whoever connects. This is exactly the leak OHTTP exists to close in BIP77, and nostr does not close it. Tor does; routing over it is not yet the default here.</li>
+        <li><strong>Event size.</strong> Payload length still correlates with the number of inputs. BIP77 pads for this reason and we do not yet.</li>
+        <li><strong>Fallback suitability.</strong> The receiver checks whether the fallback could be broadcast using only what Esplora exposes. A node-backed receiver would ask <code>testmempoolaccept</code> and get a real answer.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Reproduce it</p>
+    <h2>Two terminals</h2>
+    <p class="prose">
+      Both wallets need signet coins — the receiver especially, since contributing an
+      input is the entire mechanism, and an unfunded receiver cannot payjoin at all.
+    </p>
+<pre><span class="c"># each side, once</span>
+cargo run -p pjn-receiver -- keygen
+
+<span class="c"># terminal 1 — prints a payjoin URI, then waits</span>
+cargo run -p pjn-receiver -- serve --amount 30000
+
+<span class="c"># terminal 2 — pay it</span>
+cargo run -p pjn-sender -- "bitcoin:tb1q…?amount=0.0003&amp;pj=https://nostr.invalid/…"</pre>
+    <p class="prose">
+      Stop terminal 1 before running terminal 2, then start it again. It reprints the
+      same URI and collects what the relays held for it.
+    </p>
+  </section>
+
+  <footer>
+    Signet transaction 7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17,
+    confirmed in block 3,416,929. Built on the payjoin crate and nostr-sdk.
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var grid = document.getElementById("txgrid");
+    var bInf = document.getElementById("btn-inferred");
+    var bAct = document.getElementById("btn-actual");
+
+    function show(view) {
+      grid.setAttribute("data-view", view);
+      var isActual = view === "actual";
+      bAct.setAttribute("aria-pressed", String(isActual));
+      bInf.setAttribute("aria-pressed", String(!isActual));
+    }
+
+    bInf.addEventListener("click", function () { show("inferred"); });
+    bAct.addEventListener("click", function () { show("actual"); });
+  })();
+</script>

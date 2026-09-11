@@ -1,0 +1,427 @@
+<title>Paying Without Being Watched</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+
+<style>
+  :root {
+    --ground:    #EFF2F0;
+    --surface:   #FFFFFF;
+    --surface-2: #E4EAE6;
+    --ink:       #14191C;
+    --ink-soft:  #56625E;
+    --ink-faint: #8B9791;
+    --rule:      #D3DAD6;
+    --right:     #17624F;
+    --right-bg:  #DCEBE4;
+    --wrong:     #A8402A;
+    --wrong-bg:  #F6E2DC;
+
+    --measure: 34rem;
+
+    --f-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --f-body: "Karla", "Helvetica Neue", Arial, sans-serif;
+    --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0D1312;
+      --surface:   #161F1D;
+      --surface-2: #1E2A27;
+      --ink:       #E6ECE9;
+      --ink-soft:  #97A39E;
+      --ink-faint: #6D7B76;
+      --rule:      #26332F;
+      --right:     #57B894;
+      --right-bg:  #12291F;
+      --wrong:     #E28569;
+      --wrong-bg:  #33201A;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #0D1312;
+    --surface:   #161F1D;
+    --surface-2: #1E2A27;
+    --ink:       #E6ECE9;
+    --ink-soft:  #97A39E;
+    --ink-faint: #6D7B76;
+    --rule:      #26332F;
+    --right:     #57B894;
+    --right-bg:  #12291F;
+    --wrong:     #E28569;
+    --wrong-bg:  #33201A;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 18px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 22px 100px;
+  }
+
+  .wrap { max-width: var(--measure); margin: 0 auto; }
+
+  h1, h2, .kicker { font-family: var(--f-display); text-wrap: balance; }
+
+  h1 {
+    font-size: clamp(2.3rem, 8vw, 3.4rem);
+    line-height: 1.03;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 20px;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 4.5vw, 1.95rem);
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    margin: 0 0 16px;
+  }
+
+  p { margin: 0 0 20px; }
+
+  .lede { font-size: 1.22rem; line-height: 1.5; color: var(--ink-soft); }
+
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+
+  header {
+    padding: 68px 0 34px;
+    margin-bottom: 12px;
+  }
+
+  section {
+    padding: 34px 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .kicker {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-style: italic;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+
+  /* the one pulled-out line per section */
+  .rule-box {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 22px 24px;
+    margin: 0 0 22px;
+    font-family: var(--f-display);
+    font-size: 1.2rem;
+    line-height: 1.35;
+    font-weight: 500;
+  }
+
+  /* two readings of the same payment */
+  .readings {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin: 0 0 22px;
+  }
+  @media (min-width: 620px) {
+    .readings { grid-template-columns: 1fr 1fr; }
+  }
+
+  .reading {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 20px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .reading.wrong { border-top: 3px solid var(--wrong); }
+  .reading.right { border-top: 3px solid var(--right); }
+
+  .reading .hd {
+    font-family: var(--f-body);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .reading.wrong .hd { color: var(--wrong); }
+  .reading.right .hd { color: var(--right); }
+
+  .reading ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; }
+  .reading li { font-size: 0.97rem; line-height: 1.45; padding-left: 20px; position: relative; }
+  .reading li::before {
+    position: absolute;
+    left: 0; top: 0;
+    font-weight: 700;
+  }
+  .reading.wrong li::before { content: "✕"; color: var(--wrong); }
+  .reading.right li::before { content: "✓"; color: var(--right); }
+
+  .big {
+    font-family: var(--f-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    line-height: 1.1;
+  }
+  .reading.wrong .big { color: var(--wrong); }
+  .reading.right .big { color: var(--right); }
+  .big + .cap { font-size: 0.82rem; color: var(--ink-soft); display: block; margin-top: 2px; }
+
+  /* the sequence — a real before/after, so ordering carries meaning */
+  .then-now { display: flex; flex-direction: column; gap: 0; margin: 0 0 20px; }
+  .tn {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tn:last-child { border-bottom: 0; }
+  .tn .when {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 3px;
+    white-space: nowrap;
+  }
+  .tn .what { font-size: 0.97rem; line-height: 1.5; }
+  .tn .what b { font-weight: 700; }
+  @media (max-width: 520px) {
+    .tn { grid-template-columns: 1fr; }
+  }
+
+  .proof {
+    background: var(--right-bg);
+    border-radius: 4px;
+    padding: 22px 24px;
+  }
+  .proof p:last-child { margin-bottom: 0; }
+  .proof .txid {
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    word-break: break-all;
+    color: var(--ink-soft);
+    display: block;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  .aside {
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--rule);
+    padding-left: 16px;
+    margin: 0 0 20px;
+  }
+
+  footer {
+    padding-top: 28px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.88rem;
+    color: var(--ink-faint);
+  }
+  footer a { color: var(--right); }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <h1>Your bank statement is already public</h1>
+    <p class="lede">
+      Every Bitcoin payment ever made is written on a noticeboard that anyone can
+      read, forever. Here is why that is a problem, and a trick that fixes it.
+    </p>
+  </header>
+
+  <section>
+    <span class="kicker">The problem</span>
+    <h2>Whoever you pay can look you up</h2>
+    <p>
+      Bitcoin has no names, only addresses — long strings of letters and numbers.
+      People assume that makes it anonymous. It does not. It makes it
+      <em>pseudonymous</em>, which is a very different thing: the entire history is
+      public, and the only question is whether anyone can connect an address to you.
+    </p>
+    <p>
+      Usually they can. Pay a shop once and that shop now has an address it knows is
+      yours. It can look up how much you have left. What you were paid last month.
+      Where you spend. So can your landlord, your employer, and anyone who has ever
+      sent you money.
+    </p>
+  </section>
+
+  <section>
+    <span class="kicker">How they connect the dots</span>
+    <h2>One rule does most of the work</h2>
+    <p>
+      Companies that trace Bitcoin need to bundle scattered addresses into "this is
+      one person's wallet." They mostly do it with a single assumption:
+    </p>
+    <div class="rule-box">
+      If one payment spends two coins at once, the same person must have owned both
+      of them.
+    </div>
+    <p>
+      Think of paying in cash. If you hand over two notes, obviously both notes were
+      yours — you had them in your pocket. The same logic applies on Bitcoin, and it
+      is right nearly every time. It is cheap to check across every payment ever made,
+      and it is the foundation almost all Bitcoin surveillance is built on.
+    </p>
+  </section>
+
+  <section>
+    <span class="kicker">The trick</span>
+    <h2>Let the shop chip in</h2>
+    <p>
+      There is a technique called <strong>payjoin</strong>. When you pay, the shop
+      quietly adds one of <em>its own</em> coins to your payment before it goes out.
+    </p>
+    <p>
+      Back to cash: you hand over two notes, but one of them was slipped in by the
+      shopkeeper. Anyone watching counts two notes and assumes both were yours. They
+      are wrong — and nothing about the payment reveals that they are wrong.
+    </p>
+    <p>
+      The amounts stop making sense too. Because the shop's own coin goes in and comes
+      straight back out, the number you actually paid never appears anywhere.
+    </p>
+  </section>
+
+  <section>
+    <span class="kicker">A real payment we made</span>
+    <h2>What a snooper sees, and what happened</h2>
+    <p>
+      This is not a mock-up. We ran this payment for real and it is recorded publicly,
+      like every other Bitcoin payment.
+    </p>
+
+    <div class="readings">
+      <div class="reading wrong">
+        <span class="hd">What a snooper concludes</span>
+        <span class="big">130,000</span>
+        <span class="cap">was paid</span>
+        <ul>
+          <li>One person made this payment</li>
+          <li>Both coins came from that person's wallet</li>
+          <li>These two wallets belong to the same someone — merge them and everything either has ever touched</li>
+        </ul>
+      </div>
+      <div class="reading right">
+        <span class="hd">What actually happened</span>
+        <span class="big">30,000</span>
+        <span class="cap">was paid</span>
+        <ul>
+          <li>Two different people, who had never dealt with each other before</li>
+          <li>One coin from each of them</li>
+          <li>The wallets belong to strangers — the snooper's link is false, and everything built on it is now wrong too</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>
+      That last point is the part people miss. Payjoin does not just hide one payment.
+      It feeds bad information into the tracing companies' records, and every
+      conclusion they draw through that false link inherits the mistake.
+    </p>
+  </section>
+
+  <section>
+    <span class="kicker">The catch</span>
+    <h2>So why doesn't everyone do this?</h2>
+    <p>
+      Because it takes two. A normal payment you can send on your own — the other
+      person can be asleep, or offline for a year. Payjoin needs the shop to actually
+      take part, because it has to add its coin and approve the result.
+    </p>
+
+    <div class="then-now">
+      <div class="tn">
+        <span class="when">First try</span>
+        <span class="what">
+          The shop had to be <b>running a server, awake, at the exact second you paid</b>.
+          Fine for a big company. Impossible for a person with a phone in their pocket.
+        </span>
+      </div>
+      <div class="tn">
+        <span class="when">Second try</span>
+        <span class="what">
+          Put a <b>middleman company</b> in between to hold the message until the shop
+          wakes up. This works — but now a company sits in the middle of a privacy
+          tool, and only a handful of them exist. Whoever runs one can be pressured,
+          or simply switch it off.
+        </span>
+      </div>
+      <div class="tn">
+        <span class="when">Ours</span>
+        <span class="what">
+          Use <b>message boards that already exist</b>, run by hundreds of unrelated
+          people, and leave a sealed note. Nobody new has to run anything.
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="kicker">What we built</span>
+    <h2>Leave a sealed note on a public board</h2>
+    <p>
+      There is an open network called <strong>nostr</strong> — thousands of simple
+      message relays, run by ordinary people all over the world, already online.
+      Anyone can post a message, and anyone can pick one up later.
+    </p>
+    <p>
+      So the shop publishes a payment request with a <em>one-time name</em> attached.
+      You leave your half of the payment on those relays, sealed, addressed to that
+      name. The relays cannot open it — to them it is a locked box with no return
+      address. The shop collects it whenever it next comes online, and posts its reply
+      the same way.
+    </p>
+    <p class="aside">
+      Being honest about the limit: the relays cannot read anything you send, but they
+      do see the internet address you connected from — the same way any website does.
+      Routing through Tor would close that, and we have not made it the default yet.
+    </p>
+  </section>
+
+  <section>
+    <span class="kicker">Does it actually work?</span>
+    <h2>Yes, and the shop was switched off</h2>
+    <div class="proof">
+      <p>
+        We ran it. The receiving side printed its payment request and then
+        <strong>we shut the program down entirely</strong>. The payer sent anyway, and
+        the relays held the sealed note.
+      </p>
+      <p>
+        Some time later we started the receiver again. It picked up the note that had
+        arrived while it was off, added its coin, and sent its half back. The payment
+        went through — and it is now recorded publicly as the confusing, unreadable
+        thing you saw above.
+      </p>
+      <span class="txid">
+        Test-network payment 7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17
+      </span>
+    </div>
+  </section>
+
+  <footer>
+    Want the technical version, with the actual coins, addresses and what each relay
+    could see? That is in the <a href="report.html">chain-analysis report</a>.
+  </footer>
+</div>
