@@ -30,6 +30,10 @@ use crate::receiver::SeenInputs;
 /// Default session filename, alongside the working directory.
 pub const DEFAULT_SESSION_FILE: &str = ".pjn-session.json";
 
+/// Default sender session filename. Separate from the receiver's, so both sides
+/// can run from one directory during a demo without overwriting each other.
+pub const DEFAULT_SENDER_SESSION_FILE: &str = ".pjn-sender-session.json";
+
 /// A receiver's session: the key its payjoin URI points at, plus what it has seen.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiverSession {
@@ -97,6 +101,15 @@ pub struct SenderSession {
     /// The URI this payment was made against, needed to rebuild the context.
     pub pj_uri: String,
     pub fee_rate_sat_vb: u64,
+    /// Unix seconds just before the request was published, or 0 if it has not
+    /// been published yet.
+    ///
+    /// Zero is what makes the save-before-publish order safe: a run that crashes
+    /// between saving and publishing leaves a session that reads as unsent, and
+    /// the next run sends it. Once set, it anchors the relay lookback window for
+    /// the reply, the same way the receiver's `created_at` does.
+    #[serde(default)]
+    pub published_at: u64,
 }
 
 /// Read a session file, or `None` if it does not exist.
@@ -247,6 +260,52 @@ mod tests {
         let loaded: ReceiverSession = load(&path).unwrap().unwrap();
         assert_eq!(loaded.created_at, 0);
         clear(&path).unwrap();
+    }
+
+    fn sender_session() -> SenderSession {
+        SenderSession {
+            secret_key: "bb".repeat(32),
+            relays: vec!["wss://relay.damus.io".into()],
+            receiver_pubkey: "cc".repeat(32),
+            session_id: "dd".repeat(32),
+            original_psbt: "cHNidP8=".into(),
+            pj_uri: "bitcoin:tb1q?pj=https://nostr.invalid/cc?r=wss://x".into(),
+            fee_rate_sat_vb: 2,
+            published_at: 1_800_000_000,
+        }
+    }
+
+    #[test]
+    fn sender_session_round_trips_through_disk() {
+        let path = tmpdir().join("sender.json");
+        let session = sender_session();
+        save(&path, &session).unwrap();
+
+        let loaded: SenderSession = load(&path).unwrap().expect("just wrote it");
+        assert_eq!(loaded.secret_key, session.secret_key);
+        assert_eq!(loaded.original_psbt, session.original_psbt);
+        assert_eq!(loaded.pj_uri, session.pj_uri);
+        assert_eq!(loaded.published_at, 1_800_000_000);
+        clear(&path).unwrap();
+    }
+
+    #[test]
+    fn an_unpublished_sender_session_reads_as_unpublished() {
+        // A session saved before publishing, or written before the field existed,
+        // must read as "not sent yet" so the next run sends it, not waits on it.
+        let path = tmpdir().join("sender-unpublished.json");
+        let legacy = r#"{"secret_key":"bb","relays":["wss://x"],"receiver_pubkey":"cc",
+            "session_id":"dd","original_psbt":"cHNidP8=","pj_uri":"bitcoin:tb1q",
+            "fee_rate_sat_vb":2}"#;
+        std::fs::write(&path, legacy).unwrap();
+        let loaded: SenderSession = load(&path).unwrap().unwrap();
+        assert_eq!(loaded.published_at, 0);
+        clear(&path).unwrap();
+    }
+
+    #[test]
+    fn sender_and_receiver_default_files_do_not_collide() {
+        assert_ne!(DEFAULT_SESSION_FILE, DEFAULT_SENDER_SESSION_FILE);
     }
 
     #[test]

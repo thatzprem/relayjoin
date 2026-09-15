@@ -82,6 +82,17 @@ impl SignetWallet {
         self.wallet.list_unspent().count()
     }
 
+    /// Whether `outpoint` is one of our coins and still unspent, as of the last sync.
+    ///
+    /// Esplora reports mempool transactions, so a coin spent by a broadcast that has
+    /// not confirmed yet already reads as spent here. That is what a resumed payment
+    /// needs to avoid spending the same coins twice.
+    pub fn is_unspent(&self, outpoint: OutPoint) -> bool {
+        self.wallet
+            .list_unspent()
+            .any(|utxo| utxo.outpoint == outpoint)
+    }
+
     /// Broadcast a finished transaction.
     pub fn broadcast(&self, tx: &Transaction) -> Result<()> {
         self.client

@@ -5,3 +5,4 @@ Cargo.lock.bak
 *.sqlite
 *.log
 .pjn-session.json
+.pjn-sender-session.json

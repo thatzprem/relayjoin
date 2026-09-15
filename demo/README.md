@@ -58,9 +58,13 @@ it collect a payload that arrived while it was gone.
 `pjn-receiver reset` forgets the session, which permanently invalidates the URI
 it printed.
 
-The sender does not yet resume this way — it holds its validation context in
-memory, so leave terminal 2 running once it has sent. See the README's Status
-table.
+The sender resumes the same way. Once it has published, you can close terminal 2
+as well. Running `pjn-sender` again with no URI reloads the saved payment from
+`.pjn-sender-session.json` and picks up the receiver's reply. It uses the same
+nostr key and the same Original PSBT, so nothing is sent twice. If the payment
+already settled on an earlier run, the sender sees that its coins are spent,
+deletes the saved state, and does not broadcast again. `pjn-sender --abandon`
+deletes a saved payment without broadcasting anything.
 
 ## Terminal 2 — sender
 

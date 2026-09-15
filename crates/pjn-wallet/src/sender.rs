@@ -11,7 +11,7 @@
 
 use anyhow::{Context, Result};
 use bitcoin::{Address, Amount, FeeRate, Psbt};
-use payjoin::send::v1::V1Context;
+pub use payjoin::send::v1::V1Context;
 use payjoin::{PjUri, Uri};
 
 use crate::uri::NostrRoute;

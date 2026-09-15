@@ -61,7 +61,7 @@ runs a server.
 | `pjn-transport` — NIP-59 gift-wrapped payjoin transport | **Verified against live public relays** |
 | `pjn-wallet` — binding to the payjoin state machines | **Working end to end** |
 | `pjn-receiver` — receiver daemon | **Built: URI, relay listen, full validation walk, signed proposal** |
-| `pjn-sender` — sender CLI | **Built: URI parsing, proposal validation, fallback** |
+| `pjn-sender` — sender CLI | **Built: URI parsing, proposal validation, fallback, resume after restart** |
 | Live two-terminal signet demo | **Run end to end; confirmed on-chain** |
 
 **A real payjoin has completed over public nostr relays, with the receiver
