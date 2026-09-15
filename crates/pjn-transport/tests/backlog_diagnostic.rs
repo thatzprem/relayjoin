@@ -88,7 +88,9 @@ async fn does_our_recv_filter_match_the_backlog() {
 
     let client = connect().await;
 
-    // Exactly the filter NostrTransport::recv builds today.
+    // The now-relative bound recv USED to build, kept deliberately: a narrow miss
+    // here is the since-window bug. recv now uses
+    // pjn_transport::backlog_since(session creation time).
     let since = Timestamp::now() - Duration::from_secs(2 * 24 * 3600 + 3600);
     let narrow = Filter::new().kind(Kind::GiftWrap).pubkey(pk).since(since);
 

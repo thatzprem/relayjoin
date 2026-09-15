@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope};
+use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope, Timestamp};
 use pjn_wallet::sender;
 use pjn_wallet::signet::SignetWallet;
 use pjn_wallet::{Amount, FeeRate};
@@ -118,6 +118,8 @@ async fn main() -> Result<()> {
         payload: request_bytes,
     };
 
+    // Taken before publishing, so the reply can never predate the window.
+    let listening_since = Timestamp::now();
     let event_id = transport.send(receiver_key, &envelope).await?;
     tracing::info!(%event_id, "original PSBT published, waiting for the proposal");
     println!(
@@ -127,7 +129,13 @@ async fn main() -> Result<()> {
     println!("  (the receiver may be offline; relays will hold this for them)");
     println!();
 
-    let outcome = await_proposal(&transport, &session, Duration::from_secs(cli.timeout_secs)).await;
+    let outcome = await_proposal(
+        &transport,
+        &session,
+        listening_since,
+        Duration::from_secs(cli.timeout_secs),
+    )
+    .await;
     transport.shutdown().await;
 
     let proposal_bytes = match outcome {
@@ -182,6 +190,7 @@ fn bitcoin_network() -> bitcoin::Network {
 async fn await_proposal(
     transport: &NostrTransport,
     session: &str,
+    listening_since: Timestamp,
     timeout: Duration,
 ) -> Result<Option<Vec<u8>>> {
     let deadline = tokio::time::Instant::now() + timeout;
@@ -192,7 +201,7 @@ async fn await_proposal(
             return Ok(None);
         }
 
-        let Some((_peer, envelope)) = transport.recv(remaining).await? else {
+        let Some((_peer, envelope)) = transport.recv(listening_since, remaining).await? else {
             return Ok(None);
         };
 

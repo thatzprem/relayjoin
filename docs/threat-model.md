@@ -93,15 +93,6 @@ wraps exactly this and must run before signing.
 - **No Tor by default.** See above. This is the biggest gap.
 - **Session key reuse is not enforced in code.** Currently a caller *can* reuse a
   session key across URIs. The API should make that hard.
-- **A receiver away for more than about an hour can miss a payload.** `recv`
-  filters with `since = now - 49h`, but NIP-59 back-dates each gift wrap's
-  `created_at` by up to 48 hours *from when it was published*. The worst case falls
-  outside the window once the receiver returns more than an hour after the sender
-  published, and the chance of a miss grows the longer it stays away. This
-  contradicts the claim that a receiver can be offline for days, because gift wraps
-  are kept for seven. The fix is to anchor the window to the session's creation
-  time, less 48 hours, instead of to the current time. In the successful demo the
-  receiver came back after 40 seconds, well inside the window.
 - **No replay protection beyond NIP-40 expiration.** A relay could re-serve an old
   gift wrap; the payjoin state machine rejects stale PSBTs, but we have not
   audited that path.
@@ -143,6 +134,17 @@ This was confirmed on-chain. The receiver was stopped, the sender published, the
 the receiver was restarted, collected the payload, and completed the payjoin:
 signet txid `7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17`,
 block 3,416,929.
+
+A related window bug was fixed afterwards. `recv` used to look back 49 hours from
+*now*. NIP-59 back-dates each gift wrap by up to 48 hours from when it was
+*published*, so a receiver that came back more than about an hour after the sender
+published could miss the payload. That contradicted the claim that the receiver
+can stay offline for days. The window is now anchored to when the session's URI was
+created: that time is saved in the session file and reused on every restart. So the
+lookback depends only on when the receiver started expecting messages, not on how
+long it was away. A regression test reproduces the old failure: a URI created at T,
+a payload published at T+1h and back-dated the full 48 hours, and a receiver back
+at T+6 days.
 
 The diagnostic that separated these causes is kept in
 `crates/pjn-transport/tests/backlog_diagnostic.rs`.

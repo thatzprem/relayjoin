@@ -42,6 +42,24 @@ use serde::{Deserialize, Serialize};
 /// visible to the two participants after unsealing.
 pub const KIND_PAYJOIN_RUMOR: u16 = 21177;
 
+pub use nostr_sdk::prelude::Timestamp;
+
+/// How far NIP-59 may back-date a gift wrap's `created_at`, plus an hour of slack
+/// for clock skew between peers and relays.
+const GIFT_WRAP_BACKDATE: Duration = Duration::from_secs(48 * 3600 + 3600);
+
+/// Earliest `created_at` a gift wrap can carry if it was published at or after
+/// `listening_since`.
+///
+/// NIP-59 back-dates each wrap by up to two days *from when it was published*, so
+/// the lower bound has to be measured from the moment we started expecting
+/// messages, never from now. Measured from now, the window slides past a stored
+/// payload while the receiver is offline, which defeats the point of a
+/// store-and-forward transport.
+pub fn backlog_since(listening_since: Timestamp) -> Timestamp {
+    listening_since - GIFT_WRAP_BACKDATE
+}
+
 /// How long to wait for relay sockets before giving up on a relay.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -243,13 +261,20 @@ impl NostrTransport {
 
     /// Wait for the next payjoin envelope addressed to us, up to `timeout`.
     ///
+    /// `listening_since` is when this party started expecting messages: for a
+    /// receiver, when its payjoin URI was created; for a sender, just before it
+    /// published. It must be stable across restarts, so a resumed receiver passes
+    /// the original creation time, not the time it came back.
+    ///
     /// Returns the sealed sender pubkey alongside the envelope. That key is
     /// authenticated by NIP-59 because it comes from the seal rather than the
     /// forgeable outer event, so it is safe to use as the reply address.
-    pub async fn recv(&self, timeout: Duration) -> Result<Option<(PublicKey, PayjoinEnvelope)>> {
-        // Gift wraps randomize created_at up to two days into the past, so a
-        // naive `since = now` filter silently drops perfectly good messages.
-        let since = Timestamp::now() - Duration::from_secs(2 * 24 * 3600 + 3600);
+    pub async fn recv(
+        &self,
+        listening_since: Timestamp,
+        timeout: Duration,
+    ) -> Result<Option<(PublicKey, PayjoinEnvelope)>> {
+        let since = backlog_since(listening_since);
         let filter = Filter::new()
             .kind(Kind::GiftWrap)
             .pubkey(self.keys.public_key())
@@ -350,6 +375,50 @@ mod tests {
         let decoded: PayjoinEnvelope = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded.payload, envelope.payload);
         assert_eq!(decoded.leg, Leg::OriginalPsbt);
+    }
+
+    const HOUR: u64 = 3600;
+    const DAY: u64 = 24 * HOUR;
+
+    #[test]
+    fn a_receiver_away_for_days_still_sees_a_maximally_backdated_payload() {
+        // Regression: the window used to be `now - 49h`. A receiver that created
+        // its URI at T, went offline, and came back six days later would miss a
+        // payload published at T+1h and back-dated the full 48 hours.
+        let created = Timestamp::from_secs(1_800_000_000);
+        let published = created.as_secs() + HOUR;
+        let wrap_created_at = Timestamp::from_secs(published - 2 * DAY);
+
+        assert!(
+            wrap_created_at >= backlog_since(created),
+            "a wrap published after the URI existed must fall inside the window"
+        );
+
+        let returned = Timestamp::from_secs(created.as_secs() + 6 * DAY);
+        let old_window = returned - Duration::from_secs(2 * DAY + HOUR);
+        assert!(
+            wrap_created_at < old_window,
+            "the old now-relative window must drop this wrap, or this test no \
+             longer reproduces the bug it guards"
+        );
+    }
+
+    #[test]
+    fn window_is_fixed_by_the_anchor_alone() {
+        // No dependency on the current time: the same anchor gives the same
+        // bound however late the receiver returns.
+        let created = Timestamp::from_secs(1_800_000_000);
+        assert_eq!(
+            backlog_since(created).as_secs(),
+            created.as_secs() - 2 * DAY - HOUR
+        );
+    }
+
+    #[test]
+    fn an_unknown_creation_time_fetches_everything_rather_than_underflowing() {
+        // Session files written before created_at existed deserialize it as 0.
+        // Every event to a per-URI key belongs to that URI, so no bound is safe.
+        assert_eq!(backlog_since(Timestamp::from_secs(0)).as_secs(), 0);
     }
 
     #[test]

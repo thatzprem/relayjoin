@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope};
+use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope, Timestamp};
 
 fn relays() -> Vec<String> {
     std::env::var("PJN_RELAYS")
@@ -31,11 +31,14 @@ async fn original_psbt_round_trips_through_public_relays() {
         .await
         .expect("receiver connect");
     let receiver_pk = receiver.public_key();
+    let listening_since = Timestamp::now();
     eprintln!("receiver session key: {receiver_pk}");
 
     // Start listening before anything is sent, the way a real receiver daemon does.
     let listener = tokio::spawn(async move {
-        let got = receiver.recv(Duration::from_secs(45)).await;
+        let got = receiver
+            .recv(listening_since, Duration::from_secs(45))
+            .await;
         receiver.shutdown().await;
         got
     });

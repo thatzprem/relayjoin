@@ -49,6 +49,15 @@ pub struct ReceiverSession {
     /// attacker can just wait for a restart.
     #[serde(default)]
     pub seen_inputs: Vec<String>,
+    /// Unix seconds when this session's URI was created.
+    ///
+    /// Anchors the relay lookback window, so it has to survive restarts:
+    /// measuring from when the receiver came back would slide the window past a
+    /// payload that arrived while it was away. Files written before this field
+    /// existed load it as 0, which fetches all history for the key. That is
+    /// safe, because the key is used for exactly one URI.
+    #[serde(default)]
+    pub created_at: u64,
 }
 
 impl ReceiverSession {
@@ -154,6 +163,7 @@ mod tests {
             address: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx".into(),
             amount_sat: 50_000,
             seen_inputs: vec![],
+            created_at: 1_800_000_000,
         }
     }
 
@@ -218,6 +228,25 @@ mod tests {
             restored.check_and_record(&good),
             "one bad entry must not disarm the guard for valid ones"
         );
+    }
+
+    #[test]
+    fn creation_time_survives_a_restart() {
+        let path = tmpdir().join("created.json");
+        save(&path, &receiver_session()).unwrap();
+        let loaded: ReceiverSession = load(&path).unwrap().unwrap();
+        assert_eq!(loaded.created_at, 1_800_000_000);
+        clear(&path).unwrap();
+    }
+
+    #[test]
+    fn a_session_file_from_before_created_at_still_loads() {
+        let path = tmpdir().join("legacy.json");
+        let legacy = r#"{"secret_key":"aa","relays":["wss://x"],"address":"tb1q","amount_sat":1}"#;
+        std::fs::write(&path, legacy).unwrap();
+        let loaded: ReceiverSession = load(&path).unwrap().unwrap();
+        assert_eq!(loaded.created_at, 0);
+        clear(&path).unwrap();
     }
 
     #[test]

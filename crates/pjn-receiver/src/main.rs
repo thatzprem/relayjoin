@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope};
+use pjn_transport::{Leg, NostrTransport, PayjoinEnvelope, Timestamp};
 use pjn_wallet::receiver::{self, FeePolicy, SeenInputs};
 use pjn_wallet::session::{self, ReceiverSession, DEFAULT_SESSION_FILE};
 use pjn_wallet::signet::SignetWallet;
@@ -233,6 +233,7 @@ async fn serve(
                 address: wallet.next_address().address.to_string(),
                 amount_sat: amount.to_sat(),
                 seen_inputs: Vec::new(),
+                created_at: Timestamp::now().as_secs(),
             };
             session::save(session_file, &state)?;
             tracing::info!(path = %session_file.display(), "started a new session");
@@ -253,7 +254,11 @@ async fn serve(
 
     let mut seen = state.seen();
     loop {
-        let outcome = run_one_session(wallet, &transport, &mut seen, timeout).await;
+        // The session's creation time, not now: a receiver that was offline for
+        // days must still look back far enough to find what arrived meanwhile.
+        let listening_since = Timestamp::from_secs(state.created_at);
+        let outcome =
+            run_one_session(wallet, &transport, &mut seen, listening_since, timeout).await;
 
         // Persist what we have seen regardless of outcome. A rejected proposal
         // still taught us outpoints, and forgetting them would let a prober
@@ -320,9 +325,10 @@ async fn run_one_session(
     wallet: &SignetWallet,
     transport: &NostrTransport,
     seen: &mut SeenInputs,
+    listening_since: Timestamp,
     timeout: Duration,
 ) -> Result<bool> {
-    let Some((sender, envelope)) = transport.recv(timeout).await? else {
+    let Some((sender, envelope)) = transport.recv(listening_since, timeout).await? else {
         return Ok(false);
     };
 
