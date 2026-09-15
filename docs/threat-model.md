@@ -93,6 +93,15 @@ wraps exactly this and must run before signing.
 - **No Tor by default.** See above. This is the biggest gap.
 - **Session key reuse is not enforced in code.** Currently a caller *can* reuse a
   session key across URIs. The API should make that hard.
+- **A receiver away for more than about an hour can miss a payload.** `recv`
+  filters with `since = now - 49h`, but NIP-59 back-dates each gift wrap's
+  `created_at` by up to 48 hours *from when it was published*. The worst case falls
+  outside the window once the receiver returns more than an hour after the sender
+  published, and the chance of a miss grows the longer it stays away. This
+  contradicts the claim that a receiver can be offline for days, because gift wraps
+  are kept for seven. The fix is to anchor the window to the session's creation
+  time, less 48 hours, instead of to the current time. In the successful demo the
+  receiver came back after 40 seconds, well inside the window.
 - **No replay protection beyond NIP-40 expiration.** A relay could re-serve an old
   gift wrap; the payjoin state machine rejects stale PSBTs, but we have not
   audited that path.
@@ -104,32 +113,36 @@ wraps exactly this and must run before signing.
 
 ---
 
-## Known bug: stored events are not being collected
+## Resolved: stored events were not being collected
 
-**Status: open. Blocks the end-to-end demo.**
+**Status: fixed.** A receiver that was offline when the sender published could not
+collect the payload when it came back. It resumed its session correctly and then
+waited as though nothing were there.
 
-A receiver that was offline when the sender published does not pick the payload
-off the relays when it comes back. It resumes its session correctly — same key,
-same URI, probing history intact — then sits waiting as though nothing is there.
+The symptom had four causes. Three of them were hidden behind the first:
 
-One cause has been found and fixed: `NostrTransport::recv` issued the REQ before
-opening the notification stream, and relays dump stored events the instant they
-see a subscription, so those events landed in the gap and were lost. That fix did
-not resolve the symptom, so at least one more cause remains.
+1. **`send()` ignored per-relay results.** `send_event` resolves `Ok` even when
+   every relay refuses, so the sender reported a successful publish while nothing
+   was stored. Once this reported honestly, the other three showed up one run at a
+   time.
+2. **Connections were never established.** `Client::connect()` only starts them,
+   so every send raced a socket that wasn't open yet. Now `try_connect()` waits,
+   with a timeout, and fails if no relay connects.
+3. **TLS failed against every relay** on a machine whose antivirus intercepts
+   HTTPS. Bundled Mozilla roots rejected its root certificate with `UnknownIssuer`.
+   Both `nostr-sdk` and `bdk_esplora` now use the system trust store.
+4. **The sender's BIP78 parameters were dropped.** They travel in the request
+   URL's query string, and that URL was being discarded as routing. The receiver
+   then made changes the sender had not authorised, and validation rejected them.
+   The envelope now carries the query.
 
-Next things to check:
+`recv()` also fetches stored events explicitly before it waits for new ones,
+instead of assuming a live subscription will replay them.
 
-- Whether `ClientNotification::Event` is emitted at all for stored events in
-  nostr-sdk 0.45, or only for events arriving after the subscription is live. If
-  the latter, `recv` needs an explicit `fetch_events` pass for the backlog before
-  falling through to the live stream.
-- Whether the `since` filter is correct. Gift wraps randomise `created_at` up to
-  two days into the past; the window allows for that, but it is worth confirming
-  against what the relay actually stored.
-- Whether both relays accepted and retained the kind-1059 event. Query
-  `relay.damus.io` and `nos.lol` directly for event
-  `a6d58fe7e7e6df025a85237eb21acd1d99d0a77659bfb509777fdfa846d56bfb`.
+This was confirmed on-chain. The receiver was stopped, the sender published, then
+the receiver was restarted, collected the payload, and completed the payjoin:
+signet txid `7d55bfd7e4e95a4740462ba47df489a76dc48592de93cf051433877239647a17`,
+block 3,416,929.
 
-Live-relay round-tripping itself is verified and works when both parties are
-online at once, so the failure is specific to backlog retrieval, not to the
-transport as a whole.
+The diagnostic that separated these causes is kept in
+`crates/pjn-transport/tests/backlog_diagnostic.rs`.

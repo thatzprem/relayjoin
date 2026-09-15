@@ -27,10 +27,13 @@
 //!
 //! # Interop note
 //!
-//! Because we speak v1 payloads, a receiver on this transport is *wire-compatible*
-//! with any BIP78 sender that can reach it — but a stock BIP78 sender speaks HTTP,
-//! not nostr, so a bridge is needed for cross-transport payments. See
-//! `docs/interop.md`.
+//! Payloads are standard BIP78 bodies and query parameters, so the protocol layer
+//! is compatible with any BIP78 implementation. The transport is not: a stock
+//! BIP78 sender POSTs over HTTPS and cannot reach a nostr-routed receiver, and
+//! the `pj=` endpoint in our URIs sits under the reserved `.invalid` TLD so such a
+//! sender fails immediately rather than leaking a PSBT. Paying across the two
+//! transports would need a bridge that accepts BIP78 over HTTPS and relays it as
+//! gift wraps. No such bridge exists.
 
 pub mod receiver;
 pub mod sender;
