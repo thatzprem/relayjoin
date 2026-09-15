@@ -1,11 +1,11 @@
 # Payjoin Theater
 
 A live, visual demo of payjoin over nostr. One command starts a small server on
-your machine that runs a real payer (Alice) and a real shop (Bob) against public
-relays and signet, and shows every step of the protocol in the browser as it
-happens.
+your machine. It runs a real payer (Alice) and a real shop (Bob) against public
+relays and signet, and walks you through the payment in the browser, one step at a
+time.
 
-Nothing on the page is scripted. Each sealed note, safety check and transaction
+Nothing on the page is scripted. Every locked note, safety check and transaction
 row appears because the code that produced it just finished. The first run made
 signet transaction
 [`3bf3169e…c7edef`](https://mutinynet.com/tx/3bf3169ea0b680f0c4bb7fa3ac7623eeb3eaa100ad01d1aebb4151fd1bc7edef),
@@ -22,9 +22,9 @@ cargo run -p pjn-receiver -- keygen
 
 Fund both from <https://faucet.mutinynet.com>. **Bob needs coins too.** A payjoin
 receiver has to add one of its own coins, so a Bob with an empty wallet cannot take
-part at all.
+part.
 
-Then start Theater:
+Start Theater:
 
 ```bash
 demo/theater.sh alice.env bob.env
@@ -33,55 +33,61 @@ demo/theater.sh alice.env bob.env
 Open <http://127.0.0.1:7777>. Syncing both wallets takes a few seconds before the
 page is ready.
 
-## The five-step story
+## Using the page
 
-The strip across the top of the page highlights what to do next.
+The page is laid out top to bottom, in the order you need it.
 
-1. **Bob asks for a payment.** His request names a key made for this one payment.
-2. **Switch Bob offline.** This is what makes the demo worth watching.
-3. **Alice pays anyway.** A sealed note lands on the relay board and waits there.
-   Nobody is listening for it.
-4. **Bring Bob back online.** He picks up the note, runs his four checks, adds a
-   coin, and sends his reply back. Alice checks his changes, signs, and broadcasts.
-5. **See what the world sees.** The confirmed transaction appears, read the way a
-   chain analyst reads it. Toggle to see what actually happened.
+**The five steps** across the top show where you are in the story.
 
-With the receiver offline, this payment would be impossible under BIP78. BIP77
-makes it possible, but only by adding a directory server and an OHTTP relay. Here,
-public relays that already exist do that job.
+**The scene** shows Alice, the public relays, and Bob. Bob has an online/offline
+switch. When Alice pays, a locked note appears on the relays between them and
+waits there until it is picked up. Click a note to see exactly what a relay stored.
 
-## What each part shows
+**The Now panel** says in plain English what is happening, and gives you the one
+button that moves the story on. Just keep pressing it:
 
-**Relay board.** What the relays actually store, taken from the published event:
+1. **Create payment request.** Bob asks Alice for some bitcoin. The default is
+   5,000 sat.
+2. **Take Bob offline.** This is the point of the demo. Private payments like this
+   normally need both people online at the same moment.
+3. **Pay Bob.** Alice pays anyway. Her locked note lands on the relays, and nobody
+   is listening.
+4. **Bring Bob back online.** He picks up the note, checks it, adds one of his own
+   coins, and replies. The panel ticks off each part as the code finishes it.
+5. **Run it again**, once the payment is confirmed.
 
-- kind 1059;
-- the throwaway key that signed it, which is not the sender's;
-- the fake timestamp NIP-59 wrote on it, next to when it was really sent;
-- how many bytes of ciphertext it holds;
-- which relays accepted it.
+While work is under way, the panel shows a checklist of what is being done, with
+each item ticking off as it completes.
 
-"Peek inside" shows what only the recipient can open. Each note links to a public
-nostr viewer, so anyone can check that there is nothing more to see.
+**What the world sees** appears once Alice broadcasts. On one side is the reading
+anyone looking at the blockchain arrives at: one person paid a large amount. On the
+other is the truth: two people, and a payment amount that appears nowhere in the
+transaction.
 
-**Under the hood.** The protocol in the order it runs. Bob's four safety checks
-appear one at a time, as his code passes each one.
+**Four collapsible sections** at the bottom hold the detail, for anyone who wants
+it:
 
-**What the world sees.** The real transaction's inputs and outputs, with the
-analyst's reading and the truth side by side. Who owns each coin comes from the
-two wallets the server holds, not from a guess.
-
-**Raw event log.** Every server event with a timestamp, for anyone who wants the
-detail.
+- **What the relays actually stored.** Each locked note as a relay operator sees
+  it: an unknown sender, a deliberately fake timestamp, scrambled contents, and
+  which relays kept it. This sits next to what is really inside, which only the
+  recipient can read. Each note links to a public nostr viewer so you can check.
+- **The transaction itself.** Every coin in and out. Switch between how an observer
+  labels them and who really owns each one, taken from the two wallets and not
+  guessed.
+- **Every protocol step.** All eleven steps in the order the code ran them, with the
+  real details.
+- **Event log.** Raw messages from the server.
 
 ## Things to know before a live demo
 
 - **It really spends signet coins.** Each run costs a few hundred sat in fees on top
   of the payment. Top up before recording.
 - **Relays are flaky, and the page says so.** On the first run, relay.damus.io
-  returned 503 and then timed out. Bob's reply was stored on the other two, and the
-  page reported "2 of 3". A demo is more convincing when a failure shows up openly
+  returned 503 and then timed out. Bob's reply was stored on the other two, and
+  the page showed "2 of 3". A demo is more convincing when a failure shows up openly
   and the payment still completes.
+- **If a step fails, nothing is lost.** The page says what went wrong. Alice still
+  holds her signed backup payment. "Start again" resets the stage.
 - **It binds to 127.0.0.1 only.** The server holds both wallets' signing keys. Do
   not expose it on a network.
-- **One payment request at a time.** Asking for a new payment clears the stage.
-  "Reset stage" clears it without asking for a new one.
+- **Refreshing is safe.** A page opened mid-run catches up from the server.
