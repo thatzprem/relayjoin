@@ -78,6 +78,45 @@ it:
   real details.
 - **Event log.** Raw messages from the server.
 
+## The replay site
+
+`site/index.html` is a recording of one real run, played back in the same page.
+It needs no server and holds no keys or coins, so it is safe to publish anywhere
+static files are served. Nobody visiting it can spend anything, because there is
+nothing there to spend.
+
+It has play/pause, 1×/2×/4× speed, and a timeline with a marker for each of the
+five steps. A caption says what the presenter clicked at each point. Long waits,
+such as waiting for a block, are shortened, and the caption says by how much. The
+payment it shows is a real transaction, linked to the block explorer. The links to
+the locked notes on a nostr viewer stop working after 7 days, because the relays
+are asked to delete them.
+
+To record a new run and rebuild the page:
+
+```bash
+demo/theater.sh alice.env bob.env --record run.jsonl
+```
+
+Play the story once in the browser, then:
+
+```bash
+cargo run -p pjn-theater --bin pjn-replay -- run.jsonl --out site/index.html
+```
+
+The bundler refuses to build a page if the recording contains anything that looks
+like key material. A recording only ever holds what the page shows, but a page that
+will be published is checked anyway.
+
+The bundler also ends the replay at the right moment. It cuts everything recorded
+after the payment confirmed, but keeps the confirmation step and the balance update
+that follow it. So you can keep clicking around after recording without spoiling
+the ending.
+
+On Windows with Smart App Control turned on, `pjn-replay.exe` may be blocked
+(`os error 4551`) each time it is rebuilt, because every build is a new file with
+no reputation yet. Building it in WSL2 or CI avoids that.
+
 ## Things to know before a live demo
 
 - **It really spends signet coins.** Each run costs a few hundred sat in fees on top

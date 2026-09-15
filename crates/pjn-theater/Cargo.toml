@@ -1,5 +1,6 @@
 [package]
 name = "pjn-theater"
+default-run = "pjn-theater"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

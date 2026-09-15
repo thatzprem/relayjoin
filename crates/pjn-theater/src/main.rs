@@ -80,6 +80,13 @@ struct Cli {
     /// Port to serve the page on.
     #[arg(long, default_value = "7777")]
     port: u16,
+
+    /// Also write every event the page receives to this file, for `pjn-replay`.
+    ///
+    /// A recording holds only what the page shows: addresses, transaction ids
+    /// and sealed-note metadata. It never contains keys or descriptors.
+    #[arg(long)]
+    record: Option<std::path::PathBuf>,
 }
 
 struct Theater {
@@ -90,6 +97,54 @@ struct Theater {
     /// Every event since the last reset, so a page opened mid-run catches up.
     history: Mutex<Vec<String>>,
     inner: tokio::sync::Mutex<Inner>,
+    recorder: Option<Recorder>,
+}
+
+/// Appends every event the page receives to a file, with its time, so
+/// `pjn-replay` can turn one real run into a static page.
+struct Recorder {
+    started: std::time::Instant,
+    file: Mutex<std::fs::File>,
+}
+
+impl Recorder {
+    fn create(path: &std::path::Path, relays: &[String]) -> Result<Self> {
+        use std::io::Write;
+
+        let mut file = std::fs::File::create(path)
+            .with_context(|| format!("creating the recording {}", path.display()))?;
+        let started_epoch_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_millis() as u64)
+            .unwrap_or(0);
+        let header = json!({
+            "recording": {
+                "started_epoch_ms": started_epoch_ms,
+                "network": "signet",
+                "relays": relays,
+            }
+        });
+        writeln!(file, "{header}").context("writing the recording header")?;
+
+        Ok(Self {
+            started: std::time::Instant::now(),
+            file: Mutex::new(file),
+        })
+    }
+
+    fn write(&self, message: &Value) {
+        use std::io::Write;
+
+        let line = json!({
+            "t": self.started.elapsed().as_millis() as u64,
+            "data": message,
+        });
+        let mut file = self.file.lock().expect("recording lock poisoned");
+        // A failed write must not stop a live demo; the recording is a bonus.
+        if let Err(e) = writeln!(file, "{line}").and_then(|()| file.flush()) {
+            tracing::warn!(error = %e, "could not write to the recording");
+        }
+    }
 }
 
 #[derive(Default)]
@@ -125,6 +180,17 @@ impl Theater {
         let text = message.to_string();
         let mut history = self.history.lock().expect("history lock poisoned");
         history.push(text.clone());
+        self.publish(&message, text);
+    }
+
+    /// Send an event to connected pages, and to the recording if there is one.
+    ///
+    /// Every event leaves through here, so a recording cannot miss one that a
+    /// page received.
+    fn publish(&self, message: &Value, text: String) {
+        if let Some(recorder) = &self.recorder {
+            recorder.write(message);
+        }
         // No receivers is normal before any page has connected.
         let _ = self.events.send(text);
     }
@@ -179,12 +245,16 @@ impl Theater {
     /// Sent live but kept out of history: a page that connects later gets one
     /// fresh snapshot rather than a replay of every stale one.
     async fn broadcast_state(&self) {
-        let _ = self.events.send(self.snapshot().await.to_string());
+        let snapshot = self.snapshot().await;
+        let text = snapshot.to_string();
+        self.publish(&snapshot, text);
     }
 
     fn clear_history(&self) {
         self.history.lock().expect("history lock poisoned").clear();
-        let _ = self.events.send(json!({ "type": "reset" }).to_string());
+        let reset = json!({ "type": "reset" });
+        let text = reset.to_string();
+        self.publish(&reset, text);
     }
 
     /// Turn a validation step Bob's code has just passed into something visible.
@@ -287,6 +357,14 @@ async fn main() -> Result<()> {
         eprintln!("warning: Bob has no coins. A payjoin receiver must add one of its own, so fund Bob first.");
     }
 
+    let recorder = match &cli.record {
+        Some(path) => {
+            println!("  Recording every event to {}", path.display());
+            Some(Recorder::create(path, &relays)?)
+        }
+        None => None,
+    };
+
     let (events, _) = broadcast::channel(1024);
     let theater = Arc::new(Theater {
         alice: Arc::new(Mutex::new(alice)),
@@ -295,7 +373,13 @@ async fn main() -> Result<()> {
         events,
         history: Mutex::new(Vec::new()),
         inner: tokio::sync::Mutex::new(inner),
+        recorder,
     });
+
+    // A replay starts from what a page sees the moment it connects.
+    if let Some(recorder) = &theater.recorder {
+        recorder.write(&theater.snapshot().await);
+    }
 
     let app = Router::new()
         .route("/", get(index))
