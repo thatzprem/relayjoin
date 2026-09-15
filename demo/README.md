@@ -117,3 +117,7 @@ relay sets. Pass `--relays` to both with the same list. Note this failure is
 **"receiver's proposal failed validation"** — working as designed. The sender
 refused to sign a rewrite it could not verify, and fell back. On signet this is
 usually a fee-policy mismatch rather than an attack.
+
+## Payjoin Theater
+
+For a visual version of this demo in the browser, with a relay board, the protocol steps and the chain analyst view, see [THEATER.md](THEATER.md).

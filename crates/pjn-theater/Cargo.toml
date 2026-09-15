@@ -1,0 +1,19 @@
+[package]
+name = "pjn-theater"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tokio = { workspace = true, features = ["net", "sync"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+pjn-transport = { version = "0.1.0", path = "../pjn-transport" }
+pjn-wallet = { version = "0.1.0", path = "../pjn-wallet" }
+axum = "0.8.9"
+bitcoin = "0.32.102"
+tokio-stream = { version = "0.1.19", features = ["sync"] }

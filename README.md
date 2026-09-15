@@ -62,6 +62,7 @@ runs a server.
 | `pjn-wallet` — binding to the payjoin state machines | **Working end to end** |
 | `pjn-receiver` — receiver daemon | **Built: URI, relay listen, full validation walk, signed proposal** |
 | `pjn-sender` — sender CLI | **Built: URI parsing, proposal validation, fallback, resume after restart** |
+| `pjn-theater` — live visual demo | **Built: a real payjoin driven end to end from the page, confirmed on-chain** |
 | Live two-terminal signet demo | **Run end to end; confirmed on-chain** |
 
 **A real payjoin has completed over public nostr relays, with the receiver
@@ -89,7 +90,7 @@ separate handshake. CI run
 [34476319227](https://github.com/thatzprem/payjoin-nostr/actions/runs/34476319227),
 gift wrap `8da3a122ce630570efd435a3f8d60061fc8ff9e5ab5b715b153fdad45eebf804`.
 
-41 unit tests pass plus that live test. The live test is `#[ignore]`d so it only
+42 unit tests pass plus that live test. The live test is `#[ignore]`d so it only
 runs on demand:
 
 ```bash

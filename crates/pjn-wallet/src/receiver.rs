@@ -111,6 +111,28 @@ impl Default for FeePolicy {
     }
 }
 
+/// A validation or construction step [`respond_with_progress`] has just passed.
+///
+/// Reported as each step completes, so a caller that shows progress is showing
+/// the checks that actually ran rather than a scripted list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiverStep {
+    /// The Original PSBT could be broadcast as a fallback.
+    Broadcastable,
+    /// None of the sender's inputs belong to us.
+    NotOurInputs,
+    /// None of the sender's inputs have been shown to us before.
+    NotSeenBefore,
+    /// The transaction actually pays us.
+    PaysUs,
+    /// We added one of our own coins, chosen to avoid the unnecessary-input heuristic.
+    InputContributed,
+    /// The resulting fee is inside our policy.
+    FeeWithinPolicy,
+    /// We signed our own input.
+    Signed,
+}
+
 /// Turn a sender's Original PSBT into a signed Payjoin Proposal.
 ///
 /// Returns the base64 PSBT bytes to send back over the transport, which is the
@@ -126,28 +148,44 @@ pub fn respond(
     seen: &mut SeenInputs,
     fees: FeePolicy,
 ) -> Result<Vec<u8>> {
+    respond_with_progress(original_psbt_bytes, params, wallet, seen, fees, |_| {})
+}
+
+/// [`respond`], reporting each step to `on_step` as it passes.
+pub fn respond_with_progress(
+    original_psbt_bytes: &[u8],
+    params: &str,
+    wallet: &impl ReceiverWallet,
+    seen: &mut SeenInputs,
+    fees: FeePolicy,
+    mut on_step: impl FnMut(ReceiverStep),
+) -> Result<Vec<u8>> {
     let unchecked = crate::parse_original_psbt(original_psbt_bytes, params)?;
 
     // 1. Is the fallback transaction actually broadcastable?
     let maybe_inputs_owned = unchecked
         .check_broadcast_suitability(fees.min_fee_rate, |tx| wallet.can_broadcast(tx))
         .map_err(|e| anyhow::anyhow!("original PSBT is not broadcastable: {e:?}"))?;
+    on_step(ReceiverStep::Broadcastable);
 
     // 2. Are any of the sender's inputs actually ours? If so, someone is trying
     //    to get us to help spend our own coins.
     let maybe_inputs_seen = maybe_inputs_owned
         .check_inputs_not_owned(&mut |outpoint| wallet.is_owned(outpoint))
         .map_err(|e| anyhow::anyhow!("original PSBT contains our own inputs: {e:?}"))?;
+    on_step(ReceiverStep::NotOurInputs);
 
     // 3. Have we been shown these inputs before? See SeenInputs.
     let outputs_unknown = maybe_inputs_seen
         .check_no_inputs_seen_before(&mut |outpoint| Ok(seen.check_and_record(outpoint)))
         .map_err(|e| anyhow::anyhow!("input replay detected, refusing to proceed: {e:?}"))?;
+    on_step(ReceiverStep::NotSeenBefore);
 
     // 4. Does this transaction actually pay us anything?
     let wants_outputs = outputs_unknown
         .identify_receiver_outputs(&mut |script| wallet.is_receiver_output(script))
         .map_err(|e| anyhow::anyhow!("original PSBT does not pay us: {e:?}"))?;
+    on_step(ReceiverStep::PaysUs);
 
     let wants_inputs = wants_outputs.commit_outputs();
 
@@ -171,16 +209,19 @@ pub fn respond(
         .contribute_inputs(vec![selected])
         .map_err(|e| anyhow::anyhow!("contributing our input: {e:?}"))?
         .commit_inputs();
+    on_step(ReceiverStep::InputContributed);
 
     // 6. Clamp the fee before signing anything.
     let provisional = wants_fee_range
         .apply_fee_range(fees.min_fee_rate, fees.max_effective_fee_rate)
         .map_err(|e| anyhow::anyhow!("proposed fee is outside our policy: {e:?}"))?;
+    on_step(ReceiverStep::FeeWithinPolicy);
 
     // 7. Sign only our own inputs.
     let proposal = provisional
         .finalize_proposal(|psbt| wallet.sign_psbt(psbt))
         .map_err(|e| anyhow::anyhow!("signing the payjoin proposal: {e:?}"))?;
+    on_step(ReceiverStep::Signed);
 
     let psbt = proposal.psbt();
     Ok(encode_psbt(psbt))

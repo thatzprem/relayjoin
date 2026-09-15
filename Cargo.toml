@@ -5,6 +5,7 @@ members = [
     "crates/pjn-wallet",
     "crates/pjn-receiver",
     "crates/pjn-sender",
+    "crates/pjn-theater",
 ]
 
 [workspace.package]

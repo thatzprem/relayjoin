@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payjoin Theater</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* One committed look: a dark stage. Every colour is set explicitly. */
+  :root {
+    color-scheme: dark;
+    --stage:   #0F1115;
+    --panel:   #171A20;
+    --panel-2: #1D2129;
+    --rule:    #2A2F38;
+    --rule-2:  #3A404B;
+    --ink:     #ECEAE4;
+    --soft:    #A4A9B2;
+    --faint:   #6D7480;
+    --wax:     #E2A548;
+    --wax-bg:  #2B2214;
+    --alice:   #8AAEE0;
+    --alice-bg:#17212F;
+    --bob:     #BFA3E0;
+    --bob-bg:  #221B2D;
+    --wrong:   #E4806A;
+    --wrong-bg:#2E1B17;
+    --right:   #66BD93;
+    --right-bg:#15271E;
+    --radius: 6px;
+    --f-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { background: var(--stage); color: var(--ink); }
+  body {
+    margin: 0;
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.55;
+    padding: 0 22px 60px;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+  button { font-family: var(--f-body); }
+  button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible {
+    outline: 2px solid var(--wax); outline-offset: 2px;
+  }
+  a { color: var(--wax); text-underline-offset: 2px; }
+  .mono { font-family: var(--f-mono); font-size: 0.86em; }
+  .num { font-variant-numeric: tabular-nums; }
+  .label {
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--faint);
+  }
+
+  /* ---------------------------------------------------------- header */
+  header.top {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 14px 24px; padding: 22px 0 16px; border-bottom: 1px solid var(--rule);
+  }
+  .brand h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; }
+  .brand p { margin: 2px 0 0; color: var(--soft); font-size: 0.92rem; }
+  .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    font-family: var(--f-mono); font-size: 0.74rem; color: var(--soft);
+    border: 1px solid var(--rule-2); border-radius: 999px; padding: 4px 10px;
+  }
+  .pill.live::before {
+    content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--right); margin-right: 7px; vertical-align: 1px;
+  }
+  .pill.down::before { background: var(--wrong); }
+  .btn {
+    border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink);
+    border-radius: var(--radius); padding: 8px 14px; font-size: 0.88rem; font-weight: 500;
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--soft); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn.primary { background: var(--wax); border-color: var(--wax); color: #1A1307; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: #EDB35C; border-color: #EDB35C; }
+
+  /* ---------------------------------------------------- script strip */
+  .script {
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0 4px; align-items: center;
+  }
+  .script .cue {
+    display: flex; align-items: center; gap: 8px; font-size: 0.84rem; color: var(--faint);
+    border: 1px solid var(--rule); border-radius: 999px; padding: 5px 12px 5px 6px;
+  }
+  .script .cue b {
+    display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--panel-2); color: var(--soft); font-size: 0.72rem; font-weight: 600;
+  }
+  .script .cue.now { color: var(--ink); border-color: var(--wax); }
+  .script .cue.now b { background: var(--wax); color: #1A1307; }
+  .script .cue.done { color: var(--soft); }
+  .script .cue.done b { background: var(--right-bg); color: var(--right); }
+
+  /* ------------------------------------------------------------ stage */
+  .stage {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 16px; margin-top: 14px; align-items: start;
+  }
+  @media (max-width: 980px) { .stage { grid-template-columns: 1fr; } }
+
+  .party, .board {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 18px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .party.alice { border-top: 3px solid var(--alice); }
+  .party.bob   { border-top: 3px solid var(--bob); }
+  .party-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .party-head h2 { font-size: 1.3rem; font-weight: 700; }
+  .party.alice h2 { color: var(--alice); }
+  .party.bob h2 { color: var(--bob); }
+  .role { color: var(--soft); font-size: 0.85rem; }
+  .balance { font-family: var(--f-display); font-size: 1.75rem; font-weight: 600; line-height: 1.1; }
+  .balance small { font-family: var(--f-body); font-size: 0.8rem; color: var(--soft); font-weight: 400; margin-left: 4px; }
+  .status-line { font-size: 0.9rem; color: var(--soft); min-height: 2.9em; }
+
+  .party.bob.offline { background: #14161B; }
+  .party.bob.offline .balance, .party.bob.offline .party-head { opacity: 0.55; }
+
+  .switch {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    background: var(--panel-2); border: 1px solid var(--rule-2); border-radius: var(--radius);
+    padding: 10px 12px; color: var(--ink); cursor: pointer;
+  }
+  .switch .track {
+    position: relative; flex: none; width: 44px; height: 24px; border-radius: 999px;
+    background: var(--wrong-bg); border: 1px solid var(--wrong);
+  }
+  .switch .knob {
+    position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--wrong);
+  }
+  .switch[aria-pressed="true"] .track { background: var(--right-bg); border-color: var(--right); }
+  .switch[aria-pressed="true"] .knob { left: 22px; background: var(--right); }
+  .switch .words { display: flex; flex-direction: column; }
+  .switch .words strong { font-size: 0.95rem; }
+  .switch .words span { font-size: 0.8rem; color: var(--soft); }
+
+  .invoice-form { display: flex; gap: 8px; align-items: stretch; }
+  .invoice-form label { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .invoice-form input {
+    background: var(--stage); border: 1px solid var(--rule-2); border-radius: var(--radius);
+    color: var(--ink); padding: 7px 10px; font-family: var(--f-mono); font-size: 0.95rem; width: 100%;
+  }
+  .invoice-card {
+    background: var(--panel-2); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;
+  }
+  .invoice-card .uri {
+    font-family: var(--f-mono); font-size: 0.72rem; color: var(--soft);
+    word-break: break-all; max-height: 4.6em; overflow: hidden;
+  }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; }
+  .kv dt { color: var(--faint); font-size: 0.8rem; }
+  .kv dd { margin: 0; font-family: var(--f-mono); font-size: 0.8rem; word-break: break-all; }
+
+  /* ------------------------------------------------------------ board */
+  .board { border-top: 3px solid var(--wax); min-height: 360px; }
+  .board-head h2 { font-size: 1.15rem; font-weight: 700; }
+  .board-head p { margin: 4px 0 0; color: var(--soft); font-size: 0.86rem; }
+  .relay-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .relay-list span {
+    font-family: var(--f-mono); font-size: 0.72rem; color: var(--soft);
+    background: var(--panel-2); border: 1px solid var(--rule); border-radius: 4px; padding: 2px 7px;
+  }
+  .notes { display: flex; flex-direction: column; gap: 12px; }
+  .empty {
+    border: 1px dashed var(--rule-2); border-radius: var(--radius); padding: 22px 16px;
+    color: var(--faint); text-align: center; font-size: 0.9rem;
+  }
+
+  .note {
+    border: 1px solid var(--rule-2); border-radius: var(--radius); background: var(--panel-2);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .note.waiting { border-color: var(--wax); box-shadow: 0 0 0 1px var(--wax-bg) inset; }
+  .note-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .note-title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .seal {
+    width: 22px; height: 16px; border-radius: 2px; background: var(--wax-bg);
+    border: 1px solid var(--wax); position: relative; flex: none;
+  }
+  .seal::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px;
+    border-radius: 50%; background: var(--wax); transform: translate(-50%, -50%);
+  }
+  .chip {
+    font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+  }
+  .chip.alice { background: var(--alice-bg); color: var(--alice); }
+  .chip.bob { background: var(--bob-bg); color: var(--bob); }
+  .chip.wax { background: var(--wax-bg); color: var(--wax); }
+  .chip.ok { background: var(--right-bg); color: var(--right); }
+  .chip.bad { background: var(--wrong-bg); color: var(--wrong); }
+  .chip.dim { background: var(--panel); color: var(--soft); }
+
+  .relay-sees {
+    background: var(--stage); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px;
+  }
+  .relay-sees .kv dd { color: var(--ink); }
+  .relay-sees .kv dd em { font-style: normal; color: var(--soft); font-family: var(--f-body); }
+  .peek summary {
+    cursor: pointer; font-size: 0.82rem; color: var(--soft); list-style: none;
+  }
+  .peek summary::-webkit-details-marker { display: none; }
+  .peek summary::before { content: "▸ "; color: var(--faint); }
+  .peek[open] summary::before { content: "▾ "; }
+  .peek .inside {
+    margin-top: 6px; padding: 8px 10px; border-radius: 4px; font-size: 0.86rem;
+    background: var(--alice-bg); border-left: 2px solid var(--alice);
+  }
+  .note.from-bob .peek .inside { background: var(--bob-bg); border-left-color: var(--bob); }
+  .note-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 0.8rem; color: var(--faint); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .note.enter-left { animation: from-left 520ms cubic-bezier(.2,.8,.2,1); }
+    .note.enter-right { animation: from-right 520ms cubic-bezier(.2,.8,.2,1); }
+    .note.waiting .seal { animation: glow 1.8s ease-in-out infinite; }
+    @keyframes from-left { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: none; } }
+    @keyframes from-right { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+    @keyframes glow { 0%,100% { box-shadow: 0 0 0 0 rgba(226,165,72,0); } 50% { box-shadow: 0 0 0 5px rgba(226,165,72,.22); } }
+  }
+
+  /* ----------------------------------------------------- under the hood */
+  section.panel {
+    margin-top: 18px; background: var(--panel); border: 1px solid var(--rule);
+    border-radius: var(--radius); padding: 18px 20px;
+  }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .panel-head h2 { font-size: 1.2rem; font-weight: 700; }
+  .panel-head p { margin: 0; color: var(--soft); font-size: 0.88rem; max-width: 62ch; }
+
+  .steps {
+    list-style: none; margin: 0; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px;
+  }
+  .steps li {
+    display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; padding: 10px 12px;
+    border: 1px solid var(--rule); border-radius: var(--radius); background: var(--panel-2);
+  }
+  .steps .dot {
+    grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 0.75rem; font-weight: 600; border: 1px solid var(--rule-2); color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .steps .title { font-weight: 600; font-size: 0.9rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .steps .detail { font-size: 0.82rem; color: var(--soft); }
+  .steps li[data-status="active"] { border-color: var(--wax); }
+  .steps li[data-status="active"] .dot { border-color: var(--wax); color: var(--wax); }
+  .steps li[data-status="done"] .dot { background: var(--right-bg); border-color: var(--right); color: var(--right); }
+  .steps li[data-status="failed"] { border-color: var(--wrong); }
+  .steps li[data-status="failed"] .dot { background: var(--wrong-bg); border-color: var(--wrong); color: var(--wrong); }
+  .steps li[data-status="pending"] .title { color: var(--soft); }
+  .who { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; }
+  .who.alice { background: var(--alice-bg); color: var(--alice); }
+  .who.bob { background: var(--bob-bg); color: var(--bob); }
+  .who.relays { background: var(--wax-bg); color: var(--wax); }
+  .who.chain { background: var(--panel); color: var(--soft); border: 1px solid var(--rule-2); }
+  .checks { grid-column: 2; list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .checks li { display: block; border: 0; background: none; padding: 0 0 0 20px; position: relative; font-size: 0.8rem; color: var(--ink); }
+  .checks li::before { content: "✓"; position: absolute; left: 2px; color: var(--right); font-weight: 600; }
+
+  /* ------------------------------------------------ what the world sees */
+  .world-toggle { display: inline-flex; border: 1px solid var(--rule-2); border-radius: var(--radius); overflow: hidden; }
+  .world-toggle button { border: 0; background: transparent; color: var(--soft); padding: 7px 13px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+  .world-toggle button + button { border-left: 1px solid var(--rule-2); }
+  .world-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--stage); }
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 760px) { .verdict { grid-template-columns: 1fr; } }
+  .verdict div { border-radius: var(--radius); padding: 12px 14px; }
+  .verdict .inferred { background: var(--wrong-bg); border: 1px solid #5A2E24; }
+  .verdict .actual { background: var(--right-bg); border: 1px solid #2A5040; }
+  .verdict .hdr { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .verdict .inferred .hdr { color: var(--wrong); }
+  .verdict .actual .hdr { color: var(--right); }
+  .verdict p { margin: 4px 0 0; font-size: 0.95rem; }
+  .verdict.show-inferred .actual, .verdict.show-actual .inferred { opacity: 0.35; }
+
+  .txgrid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+  @media (max-width: 760px) { .txgrid { grid-template-columns: 1fr; } .txgrid .arrow { display: none; } }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center;
+    background: var(--panel-2); border: 1px solid var(--rule); border-radius: var(--radius); padding: 9px 11px;
+  }
+  .row .addr { font-family: var(--f-mono); font-size: 0.74rem; color: var(--soft); word-break: break-all; }
+  .row .val { font-family: var(--f-mono); font-size: 0.92rem; font-variant-numeric: tabular-nums; }
+  .row .tag { grid-column: 1 / -1; }
+  .arrow { color: var(--faint); font-size: 1.4rem; text-align: center; }
+  .tx-meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.82rem; color: var(--soft); }
+  .tx-meta .mono { color: var(--ink); }
+
+  /* ---------------------------------------------------------- raw log */
+  details.raw { margin-top: 18px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--panel); }
+  details.raw summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 0.9rem; }
+  details.raw ol { list-style: none; margin: 0; padding: 0 16px 14px; max-height: 280px; overflow-y: auto; }
+  details.raw li { display: grid; grid-template-columns: 70px 64px 1fr; gap: 10px; padding: 4px 0; border-top: 1px solid var(--rule); font-size: 0.8rem; }
+  details.raw li .t { font-family: var(--f-mono); color: var(--faint); }
+  details.raw li .w { font-weight: 600; text-transform: capitalize; }
+  details.raw li.warn .m { color: var(--wax); }
+  details.raw li.error .m { color: var(--wrong); }
+  details.raw li .m { word-break: break-word; }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: var(--wrong-bg); border: 1px solid var(--wrong); color: var(--ink);
+    border-radius: var(--radius); padding: 10px 16px; font-size: 0.9rem; max-width: 90vw;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <h1>Payjoin Theater</h1>
+      <p>Two wallets make one private payment through public nostr relays. Every step below is happening for real on signet.</p>
+    </div>
+    <div class="top-right">
+      <span class="pill" id="conn">connecting…</span>
+      <span class="pill" id="net">signet</span>
+      <button class="btn" id="reset">Reset stage</button>
+    </div>
+  </header>
+
+  <div class="script" aria-label="Suggested order">
+    <span class="cue" data-cue="ask"><b>1</b>Bob asks for a payment</span>
+    <span class="cue" data-cue="offline"><b>2</b>Switch Bob offline</span>
+    <span class="cue" data-cue="pay"><b>3</b>Alice pays anyway</span>
+    <span class="cue" data-cue="online"><b>4</b>Bring Bob back online</span>
+    <span class="cue" data-cue="look"><b>5</b>See what the world sees</span>
+  </div>
+
+  <main class="stage">
+
+    <section class="party alice" aria-label="Alice">
+      <div class="party-head">
+        <h2>Alice</h2>
+        <span class="role">pays</span>
+      </div>
+      <div>
+        <div class="label">Wallet</div>
+        <div class="balance num" id="alice-balance">—</div>
+      </div>
+      <div class="status-line" id="alice-status">Waiting for Bob to ask for a payment.</div>
+      <button class="btn primary" id="pay" disabled>Pay Bob's request</button>
+    </section>
+
+    <section class="board" aria-label="Public relays">
+      <div class="board-head">
+        <h2>The public relays</h2>
+        <p>Anyone can run one and anyone can read one. This is everything they store about this payment.</p>
+      </div>
+      <div class="relay-list" id="relays"></div>
+      <div class="notes" id="notes">
+        <div class="empty" id="notes-empty">Nothing stored yet. Sealed notes appear here the moment a relay accepts one.</div>
+      </div>
+    </section>
+
+    <section class="party bob offline" id="bob-card" aria-label="Bob">
+      <div class="party-head">
+        <h2>Bob's shop</h2>
+        <span class="role">receives</span>
+      </div>
+      <div>
+        <div class="label">Wallet</div>
+        <div class="balance num" id="bob-balance">—</div>
+      </div>
+      <button class="switch" id="bob-switch" aria-pressed="false">
+        <span class="track"><span class="knob"></span></span>
+        <span class="words"><strong id="bob-switch-title">Bob is offline</strong><span id="bob-switch-sub">Nothing is listening. Notes will wait.</span></span>
+      </button>
+      <form class="invoice-form" id="invoice-form">
+        <label><span class="label">Ask for (sat)</span><input id="amount" type="number" min="1000" step="1000" value="20000"></label>
+        <button class="btn" id="ask" type="submit">Ask Alice to pay</button>
+      </form>
+      <div id="invoice"></div>
+    </section>
+  </main>
+
+  <section class="panel" aria-label="Under the hood">
+    <div class="panel-head">
+      <h2>Under the hood</h2>
+      <p>The protocol, in the order it runs. Each step lights up when the code that performs it finishes, not on a timer.</p>
+    </div>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
+  <section class="panel" aria-label="What the world sees">
+    <div class="panel-head">
+      <h2>What the world sees</h2>
+      <div class="world-toggle" role="group" aria-label="Reading">
+        <button id="w-inferred" aria-pressed="true">A chain analyst's reading</button>
+        <button id="w-actual" aria-pressed="false">What actually happened</button>
+      </div>
+    </div>
+    <div id="world">
+      <div class="empty">Once Alice broadcasts, the real transaction appears here, read first the way a surveillance company would read it.</div>
+    </div>
+  </section>
+
+  <details class="raw">
+    <summary>Raw event log</summary>
+    <ol id="log"></ol>
+  </details>
+</div>
+
+<script>
+(() => {
+  const STEPS = [
+    ["invoice",    "bob",    "Bob asks for a payment",               "His request names a one-time key that exists only for this payment."],
+    ["fallback",   "alice",  "Alice signs an ordinary payment first", "So she can always fall back to paying the normal way."],
+    ["seal",       "alice",  "Alice seals it for Bob's one-time key", "Locked so only Bob can open it, and signed on the outside by a throwaway key."],
+    ["stored",     "relays", "Relays store the sealed note",          "They cannot read it, and cannot tell who sent it."],
+    ["collect",    "bob",    "Bob picks up the note",                 "Whenever he is online, even if it arrived long before."],
+    ["checks",     "bob",    "Bob runs four safety checks",           "Before adding any of his own money."],
+    ["contribute", "bob",    "Bob adds one of his coins and signs",   "He signs only his own coin."],
+    ["reply",      "bob",    "Bob seals his reply back to Alice",     "The same way, through the same relays."],
+    ["validate",   "alice",  "Alice checks Bob's changes",            "He may only change what she allowed."],
+    ["broadcast",  "alice",  "Alice signs and broadcasts",            "The finished transaction goes to the whole network."],
+    ["confirm",    "chain",  "A block confirms it",                   "From then on it is public, and it reads wrong."],
+  ];
+  const WHO = { alice: "Alice", bob: "Bob", relays: "Relays", chain: "Network", system: "System" };
+
+  const $ = (id) => document.getElementById(id);
+  let state = null;
+  let tx = null;
+  let confirmedHeight = null;
+  let view = "inferred";
+  const notes = new Map();
+  const stepStatus = {};
+  const checks = [];
+  // Collections can arrive before the note they refer to; see the "note" handler.
+  const collectedBy = new Map();
+
+  function el(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") node.className = v;
+      else if (k === "text") node.textContent = v;
+      else node.setAttribute(k, v);
+    }
+    for (const child of children) if (child != null) node.append(child);
+    return node;
+  }
+  const sats = (n) => (n == null ? "?" : Number(n).toLocaleString("en-US"));
+  const short = (hex, n = 8) => (hex && hex.length > n * 2 ? hex.slice(0, n) + "…" + hex.slice(-4) : hex);
+  function ago(secs) {
+    const d = Math.max(0, Math.floor(Date.now() / 1000) - secs);
+    if (d < 10) return "just now";
+    if (d < 60) return d + " s ago";
+    if (d < 3600) return Math.floor(d / 60) + " min ago";
+    if (d < 86400) return Math.floor(d / 3600) + " h " + Math.floor((d % 3600) / 60) + " min ago";
+    return Math.floor(d / 86400) + " day " + Math.floor((d % 86400) / 3600) + " h ago";
+  }
+
+  // ------------------------------------------------------------- steps
+  function renderSteps() {
+    const list = $("steps");
+    list.replaceChildren();
+    STEPS.forEach(([id, who, title, fallback], i) => {
+      const s = stepStatus[id] || { status: "pending", detail: "" };
+      const li = el("li", { "data-status": s.status });
+      li.append(
+        el("span", { class: "dot", text: s.status === "done" ? "✓" : s.status === "failed" ? "!" : String(i + 1) }),
+        el("span", { class: "title" }, el("span", { class: "who " + who, text: WHO[who] }), el("span", { text: title })),
+        el("span", { class: "detail", text: s.detail || fallback }),
+      );
+      if (id === "checks" && checks.length) {
+        const ul = el("ul", { class: "checks" });
+        checks.forEach((c) => ul.append(el("li", { text: c.label })));
+        li.append(ul);
+      }
+      list.append(li);
+    });
+  }
+
+  // ------------------------------------------------------------- notes
+  function renderNote(n) {
+    const fromBob = n.from === "bob";
+    const collected = n.collected_by;
+    const card = el("article", { class: "note " + (fromBob ? "from-bob" : "from-alice") + (collected ? "" : " waiting") });
+    if (!n.rendered) card.classList.add(fromBob ? "enter-right" : "enter-left");
+    n.rendered = true;
+
+    const status = collected
+      ? el("span", { class: "chip ok", text: "Collected by " + WHO[collected] })
+      : el("span", { class: "chip wax", text: "Waiting on the relays" });
+
+    const head = el("div", { class: "note-head" },
+      el("span", { class: "note-title" }, el("span", { class: "seal", "aria-hidden": "true" }), el("span", { text: "Sealed note" })),
+      el("span", { style: "display:flex;gap:6px;flex-wrap:wrap" },
+        el("span", { class: "chip " + n.from, text: WHO[n.from] + " → " + WHO[n.to] }),
+        status),
+    );
+
+    const stored = (n.accepted || []).map((r) => r.replace(/^wss?:\/\//, "").replace(/\/$/, "")).join(", ");
+    const dl = el("dl", { class: "kv" });
+    const add = (k, ...v) => dl.append(el("dt", { text: k }), el("dd", {}, ...v));
+    add("Kind", "1059 ", el("em", { text: "(gift wrap)" }));
+    add("Signed by", short(n.outer_pubkey), el("em", { text: " a key made for this one note, not " + WHO[n.from] + "'s" }));
+    add("Timestamp", el("span", { "data-ago": n.stamped_at, text: ago(n.stamped_at) }), el("em", { text: " (really sent " }), el("span", { "data-ago": n.sent_at, text: ago(n.sent_at) }), el("em", { text: ")" }));
+    add("Contents", sats(n.bytes) + " bytes ", el("em", { text: "of ciphertext" }));
+    add("Stored on", stored || "none");
+
+    const sees = el("div", { class: "relay-sees" }, el("div", { class: "label", text: "What a relay sees" }), dl);
+
+    const peek = el("details", { class: "peek" },
+      el("summary", { text: "Peek inside (only " + WHO[n.to] + " can actually open this)" }),
+      el("div", { class: "inside", text: n.inside }));
+
+    const foot = el("div", { class: "note-foot" }, el("span", { class: "mono", text: "id " + short(n.id, 10) }));
+    if (n.nevent) {
+      foot.append(el("a", { href: "https://njump.me/" + n.nevent, target: "_blank", rel: "noopener", text: "Open on a public nostr viewer ↗" }));
+    }
+    card.append(head, sees, peek, foot);
+    return card;
+  }
+
+  function renderNotes() {
+    const box = $("notes");
+    const empty = $("notes-empty");
+    box.replaceChildren();
+    if (notes.size === 0) { box.append(empty); return; }
+    [...notes.values()].reverse().forEach((n) => box.append(renderNote(n)));
+  }
+
+  // ------------------------------------------------------------- world
+  function renderWorld() {
+    const box = $("world");
+    if (!tx) {
+      box.replaceChildren(el("div", { class: "empty", text: "Once Alice broadcasts, the real transaction appears here, read first the way a surveillance company would read it." }));
+      return;
+    }
+    const inputTotal = tx.inputs.reduce((s, i) => s + (i.value || 0), 0);
+    const outs = tx.outputs.map((o) => sats(o.value)).join(" or ");
+    const verdict = el("div", { class: "verdict show-" + view },
+      el("div", { class: "inferred" },
+        el("div", { class: "hdr", text: "A chain analyst concludes" }),
+        el("p", { text: "One person spent " + sats(inputTotal) + " sat from coins they all own, and paid either " + outs + " sat." })),
+      el("div", { class: "actual" },
+        el("div", { class: "hdr", text: "What actually happened" }),
+        el("p", { text: "Two people. Alice paid Bob " + sats(tx.payment_sat) + " sat, a number that appears nowhere in this transaction." })),
+    );
+
+    const tag = (side, entry, isInput, index) => {
+      if (view === "inferred") {
+        return isInput
+          ? el("span", { class: "chip bad", text: "Entity A (same owner as every input)" })
+          : el("span", { class: "chip bad", text: index === 0 ? "Payment or change?" : "Change or payment?" });
+      }
+      if (entry.owner === "alice") return el("span", { class: "chip alice", text: isInput ? "Alice's coin" : "Alice's change" });
+      if (entry.owner === "bob") return el("span", { class: "chip bob", text: isInput ? "Bob's own coin, added by Bob" : "Bob: payment plus his coin back" });
+      return el("span", { class: "chip dim", text: "Unknown" });
+    };
+    const row = (entry, isInput, i) => el("div", { class: "row" },
+      el("span", { class: "addr", text: entry.address }),
+      el("span", { class: "val", text: sats(entry.value) }),
+      el("span", { class: "tag" }, tag(view, entry, isInput, i)));
+
+    const grid = el("div", { class: "txgrid" },
+      el("div", { class: "col" }, el("div", { class: "label", text: "Inputs · " + tx.inputs.length }), ...tx.inputs.map((e, i) => row(e, true, i))),
+      el("div", { class: "arrow", "aria-hidden": "true", text: "→" }),
+      el("div", { class: "col" }, el("div", { class: "label", text: "Outputs · " + tx.outputs.length }), ...tx.outputs.map((e, i) => row(e, false, i))),
+    );
+
+    const meta = el("div", { class: "tx-meta" },
+      el("span", {}, "txid ", el("span", { class: "mono", text: short(tx.txid, 12) })),
+      el("span", {}, "fee ", el("span", { class: "mono", text: sats(tx.fee) + " sat" })),
+      el("span", { text: confirmedHeight ? "Confirmed in block " + confirmedHeight.toLocaleString("en-US") : "In the mempool, waiting for a block" }),
+      el("a", { href: "https://mutinynet.com/tx/" + tx.txid, target: "_blank", rel: "noopener", text: "View on the block explorer ↗" }),
+    );
+    box.replaceChildren(verdict, grid, meta);
+  }
+
+  // ------------------------------------------------------------ state
+  function renderState() {
+    if (!state) return;
+    $("alice-balance").replaceChildren(sats(state.alice_sat), el("small", { text: "sat · " + state.alice_coins + " coin" + (state.alice_coins === 1 ? "" : "s") }));
+    $("bob-balance").replaceChildren(sats(state.bob_sat), el("small", { text: "sat · " + state.bob_coins + " coin" + (state.bob_coins === 1 ? "" : "s") }));
+    $("net").textContent = state.network + " · " + state.relays.length + " relays";
+    $("relays").replaceChildren(...state.relays.map((r) => el("span", { text: r.replace(/^wss?:\/\//, "") })));
+
+    const online = state.bob_online;
+    $("bob-card").classList.toggle("offline", !online);
+    $("bob-switch").setAttribute("aria-pressed", String(online));
+    $("bob-switch-title").textContent = online ? "Bob is online" : "Bob is offline";
+    $("bob-switch-sub").textContent = online ? "Listening to the relays for anything sealed to his key." : "Nothing is listening. Notes will wait.";
+
+    const inv = state.invoice;
+    if (inv) {
+      $("invoice").replaceChildren(el("div", { class: "invoice-card" },
+        el("div", { class: "label", text: "Bob's payment request" }),
+        el("dl", { class: "kv" },
+          el("dt", { text: "Amount" }), el("dd", { text: sats(inv.amount_sat) + " sat" }),
+          el("dt", { text: "One-time key" }), el("dd", { text: short(inv.session_pubkey, 10) })),
+        el("div", { class: "uri", text: inv.uri })));
+    } else {
+      $("invoice").replaceChildren();
+    }
+
+    $("pay").disabled = !inv || state.alice_busy || state.paid;
+    $("ask").disabled = state.alice_busy;
+    $("reset").disabled = state.alice_busy;
+
+    let alice = "Waiting for Bob to ask for a payment.";
+    if (inv && !state.alice_busy && !state.paid) alice = "Bob has asked for " + sats(inv.amount_sat) + " sat. Ready to pay.";
+    if (state.alice_busy) alice = (stepStatus.collect && stepStatus.collect.status === "active")
+      ? "Sent. Waiting for Bob to pick up the note" + (online ? "." : ". He is offline, so it waits on the relays.")
+      : "Working on the payment…";
+    if (state.paid) alice = "Paid. See what the world sees, below.";
+    $("alice-status").textContent = alice;
+
+    renderCues();
+  }
+
+  function renderCues() {
+    if (!state) return;
+    const s = state;
+    const sent = stepStatus.stored && stepStatus.stored.status === "done";
+    const done = {
+      ask: !!s.invoice,
+      offline: !!s.invoice && (!s.bob_online || sent),
+      pay: sent || s.paid,
+      online: (stepStatus.collect && stepStatus.collect.status === "done") || s.paid,
+      look: !!tx,
+    };
+    let now = "ask";
+    if (done.ask) now = "offline";
+    if (done.offline || (s.invoice && !s.bob_online)) now = done.pay ? "online" : "pay";
+    if (done.pay) now = done.online ? "look" : "online";
+    if (done.look) now = null;
+    document.querySelectorAll(".cue").forEach((c) => {
+      const k = c.dataset.cue;
+      c.classList.toggle("done", !!done[k] && k !== now);
+      c.classList.toggle("now", k === now);
+    });
+  }
+
+  function addLog(m) {
+    const li = el("li", { class: m.level || "info" },
+      el("span", { class: "t", text: new Date((m.at || Date.now() / 1000) * 1000).toLocaleTimeString([], { hour12: false }) }),
+      el("span", { class: "w", text: WHO[m.who] || m.who }),
+      el("span", { class: "m", text: m.text }));
+    $("log").prepend(li);
+  }
+
+  function resetStage() {
+    notes.clear(); collectedBy.clear(); checks.length = 0; tx = null; confirmedHeight = null;
+    for (const k of Object.keys(stepStatus)) delete stepStatus[k];
+    $("log").replaceChildren();
+    renderSteps(); renderNotes(); renderWorld(); renderState();
+  }
+
+  // ------------------------------------------------------------ events
+  function handle(m) {
+    switch (m.type) {
+      case "state": state = m; renderState(); break;
+      case "reset": resetStage(); break;
+      case "step": stepStatus[m.id] = { status: m.status, detail: m.detail }; renderSteps(); renderState(); break;
+      case "check": if (!checks.some((c) => c.id === m.id)) checks.push(m); renderSteps(); break;
+      case "note": {
+        // A relay can deliver a note to its recipient before it confirms the
+        // publish to the sender, so the collection may already be recorded.
+        if (collectedBy.has(m.id)) m.collected_by = collectedBy.get(m.id);
+        notes.set(m.id, m); renderNotes(); break;
+      }
+      case "note_collected": {
+        collectedBy.set(m.id, m.by);
+        const n = notes.get(m.id);
+        if (n) { n.collected_by = m.by; renderNotes(); }
+        break;
+      }
+      case "tx": tx = m; renderWorld(); renderCues(); break;
+      case "confirmed": confirmedHeight = m.height; renderWorld(); break;
+      case "log": addLog(m); break;
+    }
+  }
+
+  function connect() {
+    const source = new EventSource("/events");
+    source.onopen = () => { $("conn").textContent = "live"; $("conn").className = "pill live"; };
+    source.onmessage = (e) => handle(JSON.parse(e.data));
+    source.onerror = () => {
+      $("conn").textContent = "reconnecting…"; $("conn").className = "pill live down";
+      // The server replays history on reconnect, so start from a clean stage.
+      resetStage();
+    };
+  }
+
+  let toastTimer;
+  function toast(text) {
+    let t = document.querySelector(".toast");
+    if (!t) { t = el("div", { class: "toast", role: "status" }); document.body.append(t); }
+    t.textContent = text;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.remove(), 5000);
+  }
+
+  async function post(path, body) {
+    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    if (!res.ok) toast(await res.text());
+    return res.ok;
+  }
+
+  $("invoice-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    post("/api/invoice", { amount_sat: Number($("amount").value) });
+  });
+  $("bob-switch").addEventListener("click", () => post("/api/bob", { online: !(state && state.bob_online) }));
+  $("pay").addEventListener("click", () => post("/api/pay"));
+  $("reset").addEventListener("click", () => post("/api/reset"));
+  $("w-inferred").addEventListener("click", () => { view = "inferred"; $("w-inferred").setAttribute("aria-pressed", "true"); $("w-actual").setAttribute("aria-pressed", "false"); renderWorld(); });
+  $("w-actual").addEventListener("click", () => { view = "actual"; $("w-actual").setAttribute("aria-pressed", "true"); $("w-inferred").setAttribute("aria-pressed", "false"); renderWorld(); });
+
+  // Relative times drift; refresh them without rebuilding cards.
+  setInterval(() => document.querySelectorAll("[data-ago]").forEach((n) => { n.textContent = ago(Number(n.dataset.ago)); }), 10000);
+
+  renderSteps();
+  connect();
+})();
+</script>
+</body>
+</html>

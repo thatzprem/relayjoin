@@ -40,7 +40,7 @@ pub mod sender;
 pub mod session;
 pub mod signet;
 pub mod uri;
-pub use receiver::{FeePolicy, ReceiverWallet, SeenInputs};
+pub use receiver::{FeePolicy, ReceiverStep, ReceiverWallet, SeenInputs};
 
 use anyhow::{Context, Result};
 use payjoin::receive::v1::{Headers, UncheckedOriginalPayload};

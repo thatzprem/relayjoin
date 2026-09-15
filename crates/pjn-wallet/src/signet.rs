@@ -93,6 +93,24 @@ impl SignetWallet {
             .any(|utxo| utxo.outpoint == outpoint)
     }
 
+    /// Whether `script` pays one of this wallet's addresses.
+    pub fn owns_script(&self, script: &Script) -> bool {
+        self.wallet.is_mine(script.into())
+    }
+
+    /// Block height `txid` confirmed at, or `None` while it is still unconfirmed.
+    pub fn confirmation_height(&self, txid: &bdk_wallet::bitcoin::Txid) -> Result<Option<u32>> {
+        let status = self
+            .client
+            .get_tx_status(txid)
+            .context("checking transaction status")?;
+        Ok(if status.confirmed {
+            status.block_height
+        } else {
+            None
+        })
+    }
+
     /// Broadcast a finished transaction.
     pub fn broadcast(&self, tx: &Transaction) -> Result<()> {
         self.client

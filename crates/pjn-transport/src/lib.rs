@@ -26,6 +26,8 @@
 //! What a relay can still do is correlate by IP if you connect to it directly.
 //! Route over Tor for the real thing; see `docs/threat-model.md`.
 
+use std::collections::HashSet;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
@@ -42,7 +44,7 @@ use serde::{Deserialize, Serialize};
 /// visible to the two participants after unsealing.
 pub const KIND_PAYJOIN_RUMOR: u16 = 21177;
 
-pub use nostr_sdk::prelude::Timestamp;
+pub use nostr_sdk::prelude::{EventId, Timestamp};
 
 /// How far NIP-59 may back-date a gift wrap's `created_at`, plus an hour of slack
 /// for clock skew between peers and relays.
@@ -121,6 +123,38 @@ pub struct NostrTransport {
     client: Client,
     keys: Keys,
     relays: Vec<String>,
+    /// Gift wraps this transport has already handed to its caller.
+    ///
+    /// `recv` fetches the stored backlog on every call, so without this a
+    /// long-running receiver is handed the same payload again after it has
+    /// finished with it. Its replay guard then rejects that payload and sends an
+    /// error back to a sender whose payjoin already succeeded.
+    delivered: Mutex<HashSet<EventId>>,
+}
+
+/// What publishing a gift wrap produced, as a relay would see it.
+#[derive(Debug, Clone)]
+pub struct SendReceipt {
+    pub id: EventId,
+    /// The throwaway key NIP-59 signed the outer event with. Not ours.
+    pub outer_pubkey: PublicKey,
+    /// The randomised timestamp written on the outer event.
+    pub created_at: Timestamp,
+    /// Size of the sealed ciphertext a relay stores.
+    pub content_len: usize,
+    /// Relays that stored the event.
+    pub accepted: Vec<String>,
+    /// Relays that refused it, with their reasons.
+    pub refused: Vec<(String, String)>,
+}
+
+/// A payjoin envelope received from a relay, with the event that carried it.
+#[derive(Debug, Clone)]
+pub struct Delivery {
+    pub event_id: EventId,
+    /// Sealed sender key; authenticated by NIP-59, safe to reply to.
+    pub sender: PublicKey,
+    pub envelope: PayjoinEnvelope,
 }
 
 impl NostrTransport {
@@ -175,6 +209,7 @@ impl NostrTransport {
             client,
             keys,
             relays: relays.to_vec(),
+            delivered: Mutex::new(HashSet::new()),
         })
     }
 
@@ -190,6 +225,24 @@ impl NostrTransport {
 
     pub fn public_key(&self) -> PublicKey {
         self.keys.public_key()
+    }
+
+    /// Record a gift wrap as already handled, so `recv` never returns it.
+    ///
+    /// For a party that reconnects with a fresh transport: the new instance does
+    /// not know what the old one delivered, so the caller seeds it.
+    pub fn mark_delivered(&self, id: EventId) {
+        self.delivered
+            .lock()
+            .expect("delivered set poisoned")
+            .insert(id);
+    }
+
+    fn take_if_new(&self, id: EventId) -> bool {
+        self.delivered
+            .lock()
+            .expect("delivered set poisoned")
+            .insert(id)
     }
 
     /// Hex-encoded secret key, for persisting the session.
@@ -211,6 +264,17 @@ impl NostrTransport {
     /// unsealing, which is what makes reply routing work without a separate
     /// reply-key handshake.
     pub async fn send(&self, peer: PublicKey, envelope: &PayjoinEnvelope) -> Result<EventId> {
+        self.send_with_receipt(peer, envelope)
+            .await
+            .map(|receipt| receipt.id)
+    }
+
+    /// Like [`Self::send`], but reports what relays were given and which kept it.
+    pub async fn send_with_receipt(
+        &self,
+        peer: PublicKey,
+        envelope: &PayjoinEnvelope,
+    ) -> Result<SendReceipt> {
         let rumor = EventBuilder::new(
             Kind::Custom(KIND_PAYJOIN_RUMOR),
             serde_json::to_string(envelope)?,
@@ -233,30 +297,43 @@ impl NostrTransport {
         // send_event resolves Ok even when every relay refused the event, so the
         // per-relay outcome has to be inspected. Treating a refusal as success is
         // how a sender ends up believing a payjoin is in flight while nothing was
-        // ever stored — relays reject for write policy, proof-of-work and rate
+        // ever stored. Relays reject for write policy, proof-of-work and rate
         // limits, and a throwaway key trips exactly those rules.
-        for (relay, error) in &output.failed {
+        let refused: Vec<(String, String)> = output
+            .failed
+            .iter()
+            .map(|(relay, error)| (relay.to_string(), error.to_string()))
+            .collect();
+        for (relay, error) in &refused {
             tracing::warn!(%relay, %error, "relay refused the gift wrap");
         }
 
         if output.success.is_empty() {
-            let reasons = output
-                .failed
+            let reasons = refused
                 .iter()
                 .map(|(relay, error)| format!("{relay}: {error}"))
                 .collect::<Vec<_>>()
                 .join("; ");
             return Err(anyhow!(
-                "no relay accepted the payjoin payload, so it is not stored anywhere                  and the peer will never see it ({reasons})"
+                "no relay accepted the payjoin payload, so it is not stored anywhere \
+                 and the peer will never see it ({reasons})"
             ));
         }
 
         tracing::info!(
             accepted = output.success.len(),
-            refused = output.failed.len(),
+            refused = refused.len(),
             "gift wrap published"
         );
-        Ok(*output.id())
+
+        Ok(SendReceipt {
+            id: wrapped.id,
+            outer_pubkey: wrapped.pubkey,
+            created_at: wrapped.created_at,
+            content_len: wrapped.content.len(),
+            accepted: output.success.keys().map(|r| r.to_string()).collect(),
+            refused,
+        })
     }
 
     /// Wait for the next payjoin envelope addressed to us, up to `timeout`.
@@ -269,11 +346,25 @@ impl NostrTransport {
     /// Returns the sealed sender pubkey alongside the envelope. That key is
     /// authenticated by NIP-59 because it comes from the seal rather than the
     /// forgeable outer event, so it is safe to use as the reply address.
+    ///
+    /// Never returns the same gift wrap twice from one transport.
     pub async fn recv(
         &self,
         listening_since: Timestamp,
         timeout: Duration,
     ) -> Result<Option<(PublicKey, PayjoinEnvelope)>> {
+        Ok(self
+            .recv_detailed(listening_since, timeout)
+            .await?
+            .map(|d| (d.sender, d.envelope)))
+    }
+
+    /// Like [`Self::recv`], but also reports which event carried the envelope.
+    pub async fn recv_detailed(
+        &self,
+        listening_since: Timestamp,
+        timeout: Duration,
+    ) -> Result<Option<Delivery>> {
         let since = backlog_since(listening_since);
         let filter = Filter::new()
             .kind(Kind::GiftWrap)
@@ -292,17 +383,16 @@ impl NostrTransport {
             .await
             .context("fetching stored gift wraps")?;
 
-        if !stored.is_empty() {
-            tracing::info!(count = stored.len(), "found stored gift wraps waiting");
+        let fresh: Vec<Event> = stored
+            .into_iter()
+            .filter(|event| !self.already_delivered(&event.id))
+            .collect();
+        if !fresh.is_empty() {
+            tracing::info!(count = fresh.len(), "found stored gift wraps waiting");
         }
-        for event in stored {
-            match self.unwrap_envelope(&event) {
-                Ok(Some(hit)) => return Ok(Some(hit)),
-                Ok(None) => continue,
-                Err(e) => {
-                    tracing::debug!(error = %e, "skipping undecryptable stored gift wrap");
-                    continue;
-                }
+        for event in fresh {
+            if let Some(delivery) = self.deliver(&event) {
+                return Ok(Some(delivery));
             }
         }
 
@@ -325,21 +415,40 @@ impl NostrTransport {
                 maybe = notifications.next() => {
                     let Some(notification) = maybe else { return Ok(None) };
                     let ClientNotification::Event { event, .. } = notification else { continue };
-                    if event.kind != Kind::GiftWrap {
+                    if event.kind != Kind::GiftWrap || self.already_delivered(&event.id) {
                         continue;
                     }
-                    match self.unwrap_envelope(&event) {
-                        Ok(Some(hit)) => return Ok(Some(hit)),
-                        // A gift wrap we cannot open, or one carrying somebody
-                        // else's protocol, is entirely normal on a shared relay.
-                        // Keep waiting rather than failing the session.
-                        Ok(None) => continue,
-                        Err(e) => {
-                            tracing::debug!(error = %e, "skipping undecryptable gift wrap");
-                            continue;
-                        }
+                    if let Some(delivery) = self.deliver(&event) {
+                        return Ok(Some(delivery));
                     }
                 }
+            }
+        }
+    }
+
+    fn already_delivered(&self, id: &EventId) -> bool {
+        self.delivered
+            .lock()
+            .expect("delivered set poisoned")
+            .contains(id)
+    }
+
+    /// Open a gift wrap and claim it, or skip it.
+    ///
+    /// A wrap we cannot open, or one carrying somebody else's protocol, is
+    /// entirely normal on a shared relay, so it is skipped rather than treated as
+    /// an error.
+    fn deliver(&self, event: &Event) -> Option<Delivery> {
+        match self.unwrap_envelope(event) {
+            Ok(Some((sender, envelope))) if self.take_if_new(event.id) => Some(Delivery {
+                event_id: event.id,
+                sender,
+                envelope,
+            }),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::debug!(error = %e, "skipping undecryptable gift wrap");
+                None
             }
         }
     }
@@ -357,6 +466,33 @@ impl NostrTransport {
     pub async fn shutdown(self) {
         self.client.shutdown().await;
     }
+}
+
+/// NIP-19 `nevent` identifier for `id` with relay hints.
+///
+/// Lets a demo link straight to a public event viewer, so anyone can inspect
+/// exactly what a relay stored: a kind-1059 event, a throwaway author, and
+/// ciphertext.
+pub fn nevent(id: EventId, relays: &[String]) -> Option<String> {
+    use nostr::nips::nip19::{Nip19Event, ToBech32};
+    let hints: Vec<RelayUrl> = relays
+        .iter()
+        .filter_map(|r| RelayUrl::parse(r).ok())
+        .collect();
+    Nip19Event::new(id).relays(hints).to_bech32().ok()
+}
+
+/// Generate a fresh session keypair without connecting to any relay.
+///
+/// Returns `(secret_hex, public_hex)`. A receiver needs the public half for its
+/// payjoin URI before it ever goes online, and the secret half to reconnect under
+/// that identity later.
+pub fn generate_session_key() -> (String, String) {
+    let keys = Keys::generate();
+    (
+        keys.secret_key().to_secret_hex(),
+        keys.public_key().to_hex(),
+    )
 }
 
 #[cfg(test)]
