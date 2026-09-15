@@ -61,7 +61,11 @@
   .conn.down .dot { background: var(--wrong); }
 
   /* ------------------------------------------------------------ stepper */
-  .stepper { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .stage-card {
+    background: var(--raise); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 20px 24px 22px; display: flex; flex-direction: column; gap: 20px;
+  }
+  .stepper { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
   .stepper li { position: relative; padding-top: 14px; font-size: 0.86rem; color: var(--faint); }
   .stepper li::before {
     content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 2px; background: var(--line);
@@ -77,8 +81,7 @@
 
   /* ------------------------------------------------------------ diagram */
   .scene {
-    background: var(--raise); border: 1px solid var(--line); border-radius: var(--r);
-    padding: 26px 24px; display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; gap: 12px;
+    display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; gap: 12px; padding: 4px 0;
   }
   @media (max-width: 720px) { .scene { grid-template-columns: 1fr; text-align: center; } .lane { min-height: 150px; } }
 
@@ -140,11 +143,12 @@
 
   /* ---------------------------------------------------------- now card */
   .now {
-    margin-top: 16px; background: var(--raise); border: 1px solid var(--line); border-left: 4px solid var(--gold);
-    border-radius: var(--r); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;
+    border-top: 1px solid var(--line); padding-top: 20px; display: flex; flex-direction: column; gap: 14px;
   }
-  .now.error { border-left-color: var(--wrong); }
-  .now.done { border-left-color: var(--right); }
+  /* Same gold as the active progress bar, so the two read as one thing. */
+  .now .eyebrow { color: var(--gold); }
+  .now.error .eyebrow { color: var(--wrong); }
+  .now.done .eyebrow { color: var(--right); }
   .now h2 { font-size: 1.45rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
   .now .why { color: var(--soft); max-width: 68ch; }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -278,9 +282,10 @@
     <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
   </header>
 
+  <section class="stage-card" aria-label="The payment">
   <ol class="stepper" id="stepper" aria-label="Story progress"></ol>
 
-  <section class="scene" aria-label="Who is involved">
+  <div class="scene" aria-label="Who is involved">
     <div class="person alice" id="alice">
       <div class="avatar" aria-hidden="true">A</div>
       <div class="name">Alice</div>
@@ -307,9 +312,10 @@
         <span id="presence-text">Offline</span>
       </button>
     </div>
-  </section>
+  </div>
 
-  <section class="now" id="now" aria-live="polite"></section>
+  <div class="now" id="now" aria-live="polite"></div>
+  </section>
 
   <section class="result" id="result" hidden></section>
 
