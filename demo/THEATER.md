@@ -81,7 +81,7 @@ it:
 ## The replay site
 
 `site/index.html` is a recording of one real run, played back in the same page.
-It is hosted at <https://payjoin-theater.vercel.app>.
+It is hosted at <https://relayjoin.vercel.app>.
 It needs no server and holds no keys or coins, so it is safe to publish anywhere
 static files are served. Nobody visiting it can spend anything, because there is
 nothing there to spend.
