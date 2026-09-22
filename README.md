@@ -91,7 +91,7 @@ separate handshake. CI run
 [34476319227](https://github.com/thatzprem/payjoin-nostr/actions/runs/34476319227),
 gift wrap `8da3a122ce630570efd435a3f8d60061fc8ff9e5ab5b715b153fdad45eebf804`.
 
-42 unit tests pass plus that live test. The live test is `#[ignore]`d so it only
+45 unit tests pass plus that live test. The live test is `#[ignore]`d so it only
 runs on demand:
 
 ```bash
