@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start Payjoin Theater with two signet wallets.
+# Start Relayjoin Theater with two signet wallets.
 #
 # Each argument is a file of the two `export` lines printed by
 # `cargo run -p pjn-receiver -- keygen`: one wallet for Alice, one for Bob.

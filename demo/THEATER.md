@@ -1,4 +1,4 @@
-# Payjoin Theater
+# Relayjoin Theater
 
 A live, visual demo of payjoin over nostr. One command starts a small server on
 your machine. It runs a real payer (Alice) and a real shop (Bob) against public

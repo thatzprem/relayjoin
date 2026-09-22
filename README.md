@@ -1,6 +1,6 @@
-# payjoin-nostr
+# Relayjoin
 
-**Asynchronous Payjoin with no directory, no OHTTP relay, and no new infrastructure.**
+**Asynchronous Payjoin over nostr, with no directory, no OHTTP relay, and no new infrastructure.**
 
 Payjoin breaks the common-input-ownership heuristic — the assumption that every
 input to a transaction belongs to one person. That assumption is the foundation

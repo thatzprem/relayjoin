@@ -1,4 +1,4 @@
-//! Payjoin Theater: a live, visual demo of payjoin over nostr.
+//! Relayjoin Theater: a live, visual demo of payjoin over nostr.
 //!
 //! Runs a real sender (Alice) and a real receiver (Bob) in one process, against
 //! public nostr relays and signet, and streams every protocol step to a browser
@@ -396,7 +396,7 @@ async fn main() -> Result<()> {
         .with_context(|| format!("binding 127.0.0.1:{}", cli.port))?;
     println!();
     println!(
-        "  Payjoin Theater is running: http://127.0.0.1:{}",
+        "  Relayjoin Theater is running: http://127.0.0.1:{}",
         cli.port
     );
     println!();

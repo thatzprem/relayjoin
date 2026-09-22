@@ -31,7 +31,7 @@ const FORBIDDEN: &[&str] = &[
 #[derive(Parser)]
 #[command(
     name = "pjn-replay",
-    about = "Turn a Payjoin Theater recording into a static replay page"
+    about = "Turn a Relayjoin Theater recording into a static replay page"
 )]
 struct Cli {
     /// JSON-lines recording written by `pjn-theater --record`.
@@ -96,8 +96,8 @@ fn main() -> Result<()> {
     out.push_str(";</script>\n");
     out.push_str(&page[script_tag..]);
     let out = out.replacen(
-        "<title>Payjoin Theater</title>",
-        "<title>Payjoin Theater Replay</title>",
+        "<title>Relayjoin Theater</title>",
+        "<title>Relayjoin Theater Replay</title>",
         1,
     );
 
