@@ -1,0 +1,11 @@
+{
+  "name": "relayjoin-demo-video",
+  "private": true,
+  "description": "Builds the Relayjoin demo video from the replay page",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

@@ -118,6 +118,25 @@ On Windows with Smart App Control turned on, `pjn-replay.exe` may be blocked
 (`os error 4551`) each time it is rebuilt, because every build is a new file with
 no reputation yet. Building it in WSL2 or CI avoids that.
 
+## The demo video
+
+<https://relayjoin.vercel.app/demo.mp4> is a two-minute video of the replay,
+with captions instead of a voice. `demo/video/build.js` makes it. It drives the
+replay page in a headless browser, steps the timeline one frame at a time, adds
+title cards and captions, and pipes the frames to ffmpeg. You need Node.js,
+ffmpeg, and Edge or Chrome:
+
+```bash
+cd demo/video && npm install && node build.js
+```
+
+It writes `site/demo.mp4`, which is served next to the replay page. Set `FFMPEG`
+or `BROWSER` if they are not found automatically.
+
+The cuts and captions are timed against the current recording, and one card
+states its date. After recording a new run, update the times and the date near
+the top of the replay section in `build.js`.
+
 ## Things to know before a live demo
 
 - **It really spends signet coins.** Each run costs a few hundred sat in fees on top

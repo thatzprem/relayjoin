@@ -64,6 +64,7 @@ runs a server.
 | `pjn-sender` — sender CLI | **Built: URI parsing, proposal validation, fallback, resume after restart** |
 | `pjn-theater` — live visual demo | **Built: a real payjoin driven end to end from the page, confirmed on-chain** |
 | `site/index.html` — replay site | **Live at [relayjoin.vercel.app](https://relayjoin.vercel.app): a recording of a real run, played back in the browser. No server, no keys** |
+| Demo video | **[relayjoin.vercel.app/demo.mp4](https://relayjoin.vercel.app/demo.mp4): two minutes, built from the replay by `demo/video/build.js`** |
 | Live two-terminal signet demo | **Run end to end; confirmed on-chain** |
 
 **A real payjoin has completed over public nostr relays, with the receiver
