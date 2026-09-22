@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#232733"/>
+      <stop offset="1" stop-color="#0c0e12"/>
+    </radialGradient>
+    <linearGradient id="out" gradientUnits="userSpaceOnUse" x1="330" y1="300" x2="470" y2="300">
+      <stop offset="0" stop-color="#F7931A"/>
+      <stop offset="1" stop-color="#B08CFF"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="600" height="600" fill="url(#bg)"/>
+
+  <!-- faint relay ring -->
+  <circle cx="300" cy="300" r="118" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+  <circle cx="300" cy="300" r="170" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="2" stroke-dasharray="4 14"/>
+
+  <!-- two coins, two owners, flowing in -->
+  <path d="M 130 190 C 215 190, 235 300, 300 300" fill="none" stroke="#F7931A" stroke-width="34" stroke-linecap="round"/>
+  <path d="M 130 410 C 215 410, 235 300, 300 300" fill="none" stroke="#B08CFF" stroke-width="34" stroke-linecap="round"/>
+  <!-- one transaction out -->
+  <path d="M 300 300 L 470 300" fill="none" stroke="url(#out)" stroke-width="34" stroke-linecap="round"/>
+
+  <!-- start coins -->
+  <circle cx="130" cy="190" r="34" fill="#F7931A"/>
+  <circle cx="130" cy="410" r="34" fill="#B08CFF"/>
+
+  <!-- the relay node, sealed -->
+  <g filter="url(#glow)">
+    <circle cx="300" cy="300" r="62" fill="#12151b" stroke="#ffffff" stroke-width="12"/>
+  </g>
+  <!-- padlock inside the node -->
+  <path d="M 284 296 v -14 a 16 16 0 0 1 32 0 v 14" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <rect x="275" y="294" width="50" height="38" rx="8" fill="#ffffff"/>
+  <circle cx="300" cy="311" r="5.5" fill="#12151b"/>
+
+  <!-- arrow head out -->
+  <path d="M 452 262 L 500 300 L 452 338 Z" fill="#B08CFF" stroke="#B08CFF" stroke-width="10" stroke-linejoin="round"/>
+</svg>

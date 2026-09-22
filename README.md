@@ -1,3 +1,5 @@
+<img src="assets/relayjoin-icon.png" alt="Relayjoin icon" width="120">
+
 # Relayjoin
 
 **Asynchronous Payjoin over nostr, with no directory, no OHTTP relay, and no new infrastructure.**
