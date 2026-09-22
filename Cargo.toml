@@ -12,7 +12,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/thatzprem/payjoin-nostr"
+repository = "https://github.com/thatzprem/relayjoin"
 
 [workspace.dependencies]
 anyhow = "1"
