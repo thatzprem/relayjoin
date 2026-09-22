@@ -152,6 +152,34 @@ property. The short version of what a relay can see:
 What a relay **can** still do is correlate by IP. Route over Tor for the real
 thing. We do not claim otherwise.
 
+## Prior art
+
+Carrying payjoin over nostr is not a new idea, and this project builds on people
+who tried it first:
+
+- **[Postr](https://www.nobsbitcoin.com/postr-payjoin-nostr/)** (2023), a proof
+  of concept that exchanged payjoin PSBTs as nostr direct messages.
+- **[Unify Wallet](https://github.com/Fonta1n3/Unify-Wallet)** by Fonta1n3, a
+  BIP78 payjoin wallet that coordinates over nostr using NIP-04 DMs.
+- **Kukks** proposed `pjnpub=` and `pjnostrrelays=` URI parameters for reaching a
+  payjoin receiver over nostr, and
+  **[setavenger](https://gist.github.com/setavenger/ee45897489f52336ae8af8d7d4a1841d)**
+  sketched a similar nostr-based design.
+- **[Serverless Payjoin](https://gist.github.com/DanGould/243e418752fff760c9f6b23bba8a32f9)**
+  by Dan Gould, the work that became BIP77, considered nostr as a transport.
+
+What this project does differently:
+
+- **Relays learn less.** NIP-04 shows every relay both parties' public keys and
+  the real send time. Here each message is a NIP-59 gift wrap: signed by a
+  throwaway key, with a randomized timestamp, and NIP-44 encrypted inside.
+- **One key per payment request**, not a long-lived identity.
+- **Either side can go offline and resume.** Both the receiver and the sender save
+  their session, collect what arrived while they were away, and the sender refuses
+  to pay twice.
+- **The receiver runs every check** in Payjoin Dev Kit 1.0's typestate chain
+  before it contributes a coin.
+
 ## Layout
 
 ```
