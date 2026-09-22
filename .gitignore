@@ -6,3 +6,9 @@ Cargo.lock.bak
 *.log
 .pjn-session.json
 .pjn-sender-session.json
+
+# Wallet files hold signing keys: alice.env, bob.env and anything like them.
+*.env
+.env.*
+# Theater recordings are checked before publishing, but keep ad hoc ones local.
+/*.jsonl

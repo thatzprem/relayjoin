@@ -6,16 +6,19 @@
 //! transaction row is emitted by the code that performed it.
 //!
 //! Binds to 127.0.0.1 only, because this server holds both wallets' signing keys.
+//! It also refuses requests that another website makes through the visitor's
+//! browser, since binding to loopback alone does not stop those.
 
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use axum::extract::State;
-use axum::http::StatusCode;
+use axum::extract::{Request, State};
+use axum::http::{header, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::Html;
+use axum::response::{Html, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::Parser;
@@ -388,6 +391,7 @@ async fn main() -> Result<()> {
         .route("/api/bob", post(set_bob_online))
         .route("/api/pay", post(pay))
         .route("/api/reset", post(reset))
+        .layer(middleware::from_fn_with_state(cli.port, local_only))
         .with_state(theater);
 
     // Loopback only: this server can sign with both wallets.
@@ -404,6 +408,48 @@ async fn main() -> Result<()> {
         .await
         .context("serving the page")?;
     Ok(())
+}
+
+// ------------------------------------------------------------------ local only
+
+/// Turns away requests that another website makes through the visitor's
+/// browser. Without this, any page open while Theater runs could POST to
+/// /api/pay and spend from Alice's wallet.
+async fn local_only(
+    State(port): State<u16>,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let local = {
+        let value = |name: header::HeaderName| {
+            request
+                .headers()
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+        };
+        is_local_request(value(header::HOST), value(header::ORIGIN), port)
+    };
+    if local {
+        Ok(next.run(request).await)
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
+/// The Host must name this server, which defeats DNS rebinding: a rebound page
+/// reaches 127.0.0.1 under its own hostname. A browser labels a cross-site
+/// request with the Origin of the page that sent it, so any Origin must be
+/// this server too. Tools such as curl send no Origin and are let through.
+fn is_local_request(host: Option<&str>, origin: Option<&str>, port: u16) -> bool {
+    let local_host = |value: &str| {
+        ["127.0.0.1", "localhost"]
+            .iter()
+            .any(|name| value == format!("{name}:{port}"))
+    };
+    let host_ok = host.is_some_and(local_host);
+    let origin_ok =
+        origin.is_none_or(|value| value.strip_prefix("http://").is_some_and(local_host));
+    host_ok && origin_ok
 }
 
 // ------------------------------------------------------------------ handlers
@@ -1200,7 +1246,48 @@ fn sats(n: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::sats;
+    use super::{is_local_request, sats};
+
+    #[test]
+    fn only_this_server_may_drive_the_wallets() {
+        let port = 7777;
+        // The page itself, and tools that send no Origin.
+        assert!(is_local_request(
+            Some("127.0.0.1:7777"),
+            Some("http://127.0.0.1:7777"),
+            port
+        ));
+        assert!(is_local_request(
+            Some("localhost:7777"),
+            Some("http://localhost:7777"),
+            port
+        ));
+        assert!(is_local_request(Some("127.0.0.1:7777"), None, port));
+        // Another website posting from the visitor's browser.
+        assert!(!is_local_request(
+            Some("127.0.0.1:7777"),
+            Some("https://evil.example"),
+            port
+        ));
+        assert!(!is_local_request(
+            Some("127.0.0.1:7777"),
+            Some("null"),
+            port
+        ));
+        assert!(!is_local_request(
+            Some("127.0.0.1:7777"),
+            Some("http://127.0.0.1:8080"),
+            port
+        ));
+        // A DNS-rebinding page, which arrives under its own hostname.
+        assert!(!is_local_request(Some("evil.example:7777"), None, port));
+        assert!(!is_local_request(
+            Some("evil.example:7777"),
+            Some("http://evil.example:7777"),
+            port
+        ));
+        assert!(!is_local_request(None, None, port));
+    }
 
     #[test]
     fn sats_groups_thousands() {
